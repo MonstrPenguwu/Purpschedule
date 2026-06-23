@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stream Schedule Builder</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Oswald:wght@400;700&family=Bebas+Neue&family=Roboto:wght@400;700&family=Montserrat:wght@400;700&family=Rajdhani:wght@400;600;700&family=Exo+2:wght@400;700&family=Orbitron:wght@400;700&family=Anton&family=Oxanium:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div id="app">
+
+  <!-- ═══════════ SIDEBAR ═══════════ -->
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <span class="logo">📅</span>
+      <h2>Stream Schedule</h2>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="background" title="Background & Canvas">BG</button>
+      <button class="tab" data-tab="day" title="Day Settings">Day</button>
+      <button class="tab" data-tab="timezones" title="Timezones">TZ</button>
+      <button class="tab" data-tab="export" title="Export & Save">Save</button>
+    </div>
+
+    <!-- ── Background Tab ── -->
+    <div class="tab-content active" id="tab-background">
+
+      <div class="section">
+        <div class="section-label">Background Image</div>
+        <div id="upload-dropzone">
+          <button class="btn-upload" id="bg-upload-btn">📁 Upload / Drop Image</button>
+          <p class="hint">JPG · PNG · GIF · WEBP</p>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button class="btn-secondary" id="clear-bg-btn" style="flex:1">✕ Clear</button>
+          <button class="btn-secondary" id="pan-bg-btn" style="flex:1">✥ Reposition</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Adjustments</div>
+        <div class="control-row">
+          <label>Brightness</label>
+          <div class="range-row">
+            <input type="range" id="bg-brightness" min="10" max="100" value="100">
+            <span id="bg-brightness-val">100%</span>
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Overlay Color</label>
+          <input type="color" id="overlay-color" value="#000000">
+        </div>
+        <div class="control-row">
+          <label>Overlay Opacity</label>
+          <div class="range-row">
+            <input type="range" id="overlay-opacity" min="0" max="90" value="0">
+            <span id="overlay-opacity-val">0%</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Canvas Size</div>
+        <select id="canvas-size">
+          <option value="16:9">1920×1080  (16∶9 Landscape)</option>
+          <option value="16:9-720">1280×720   (16∶9 Landscape)</option>
+          <option value="1:1">1080×1080  (1∶1 Square)</option>
+          <option value="9:16">1080×1920  (9∶16 Portrait)</option>
+        </select>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Day Box Visibility</div>
+        <div class="day-toggles" id="day-visibility-toggles"></div>
+        <button class="btn-secondary" style="margin-top:10px" id="reset-positions-btn">↺ Reset All Positions</button>
+      </div>
+
+    </div>
+
+    <!-- ── Day Tab ── -->
+    <div class="tab-content" id="tab-day">
+
+      <div class="day-selector">
+        <button class="day-btn active" data-day="monday">Mon</button>
+        <button class="day-btn" data-day="tuesday">Tue</button>
+        <button class="day-btn" data-day="wednesday">Wed</button>
+        <button class="day-btn" data-day="thursday">Thu</button>
+        <button class="day-btn" data-day="friday">Fri</button>
+      </div>
+
+      <div class="section">
+        <div class="control-row">
+          <label>No Stream Today</label>
+          <label class="toggle">
+            <input type="checkbox" id="day-no-stream">
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <div id="day-stream-settings">
+
+        <div class="section">
+          <div class="section-label">Stream Time</div>
+          <div class="time-row">
+            <select id="day-hour"></select>
+            <span class="time-sep">:</span>
+            <select id="day-minute"></select>
+            <select id="day-period">
+              <option>AM</option>
+              <option selected>PM</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-label">
+            Stream Title &nbsp;<span id="title-char-count" class="char-count">0/35</span>
+          </div>
+          <input type="text" id="day-title" maxlength="35" placeholder="e.g. Just Chatting, Valorant…">
+        </div>
+
+        <div class="section">
+          <div class="section-label">Box Background</div>
+          <div class="control-row">
+            <label>Color</label>
+            <input type="color" id="box-bg-color" value="#1a1a2e">
+          </div>
+          <div class="control-row">
+            <label>Opacity</label>
+            <div class="range-row">
+              <input type="range" id="box-bg-opacity" min="0" max="100" value="85">
+              <span id="box-opacity-val">85%</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-label">Border</div>
+          <div class="control-row">
+            <label>Color</label>
+            <input type="color" id="box-border-color" value="#9146ff">
+          </div>
+          <div class="control-row">
+            <label>Width (px)</label>
+            <input type="number" id="box-border-width" min="0" max="12" value="2">
+          </div>
+          <div class="control-row">
+            <label>Radius (px)</label>
+            <input type="number" id="box-border-radius" min="0" max="60" value="10">
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-label">Typography</div>
+          <div class="control-row">
+            <label>Font</label>
+            <select id="box-font-family">
+              <option value="Inter">Inter</option>
+              <option value="Roboto">Roboto</option>
+              <option value="Montserrat">Montserrat</option>
+              <option value="Oswald">Oswald</option>
+              <option value="Bebas Neue">Bebas Neue</option>
+              <option value="Anton">Anton</option>
+              <option value="Rajdhani">Rajdhani</option>
+              <option value="Exo 2">Exo 2</option>
+              <option value="Orbitron">Orbitron</option>
+              <option value="Oxanium">Oxanium</option>
+              <option value="Arial">Arial</option>
+              <option value="Georgia">Georgia</option>
+            </select>
+          </div>
+          <div class="control-row">
+            <label>Text Color</label>
+            <input type="color" id="box-font-color" value="#ffffff">
+          </div>
+          <div class="control-row">
+            <label>Accent Color</label>
+            <input type="color" id="box-accent-color" value="#9146ff">
+          </div>
+          <div class="control-row">
+            <label>Day Name Size</label>
+            <input type="number" id="box-day-size" min="6" max="60" value="14">
+          </div>
+          <div class="control-row">
+            <label>Time Size</label>
+            <input type="number" id="box-time-size" min="8" max="72" value="26">
+          </div>
+          <div class="control-row">
+            <label>Title Size</label>
+            <input type="number" id="box-title-size" min="6" max="40" value="13">
+          </div>
+          <div class="control-row">
+            <label>TZ Size</label>
+            <input type="number" id="box-tz-size" min="6" max="24" value="11">
+          </div>
+        </div>
+
+        <div class="section">
+          <div class="section-label">Box Dimensions</div>
+          <div class="control-row">
+            <label>Width (%)</label>
+            <input type="number" id="box-width" min="5" max="50" value="14">
+          </div>
+          <div class="control-row">
+            <label>Height (%)</label>
+            <input type="number" id="box-height" min="5" max="70" value="26">
+          </div>
+        </div>
+
+      </div><!-- #day-stream-settings -->
+
+      <div class="section">
+        <button class="btn-primary" id="apply-to-all-btn">⬇ Apply Style to All Days</button>
+      </div>
+
+    </div>
+
+    <!-- ── Timezones Tab ── -->
+    <div class="tab-content" id="tab-timezones">
+
+      <div class="section">
+        <div class="section-label">Main Timezone</div>
+        <p class="hint">Times on boxes are shown in this zone first</p>
+        <select id="main-timezone"></select>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Additional Timezones</div>
+        <p class="hint">Auto-converts on every box — no math needed</p>
+        <div id="additional-tz-list"></div>
+        <select id="add-tz-select" style="margin-top:8px"></select>
+        <button class="btn-secondary" id="add-tz-btn" style="margin-top:6px">+ Add Timezone</button>
+      </div>
+
+    </div>
+
+    <!-- ── Export Tab ── -->
+    <div class="tab-content" id="tab-export">
+
+      <div class="section">
+        <div class="section-label">Export Clean Image</div>
+        <p class="hint">Hides all editor controls — clean schedule only</p>
+        <div class="control-row">
+          <label>Format</label>
+          <select id="export-format">
+            <option value="png">PNG (lossless)</option>
+            <option value="jpeg">JPEG (smaller)</option>
+          </select>
+        </div>
+        <div class="control-row" id="quality-row" style="display:none">
+          <label>JPEG Quality</label>
+          <div class="range-row">
+            <input type="range" id="export-quality" min="0.5" max="1" step="0.05" value="0.92">
+            <span id="export-quality-val">92%</span>
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Export Scale</label>
+          <select id="export-scale">
+            <option value="1">1× — screen size</option>
+            <option value="2" selected>2× — high-res</option>
+            <option value="3">3× — ultra</option>
+          </select>
+        </div>
+        <button class="btn-primary btn-export" id="export-btn">💾 Export as Image</button>
+      </div>
+
+      <div class="section">
+        <div class="section-label">Configuration</div>
+        <p class="hint">Config saves automatically to your browser. Use these to transfer between devices.</p>
+        <button class="btn-secondary" id="save-config-btn">💾 Download Config (.json)</button>
+        <button class="btn-secondary" id="load-config-btn" style="margin-top:6px">📂 Load Config (.json)</button>
+        <input type="file" id="config-upload" accept=".json" hidden>
+      </div>
+
+    </div>
+
+  </aside>
+
+  <!-- ═══════════ CANVAS AREA ═══════════ -->
+  <main id="canvas-area">
+    <div id="schedule-wrapper">
+      <div id="schedule-canvas">
+        <div id="bg-layer"></div>
+        <div id="bg-overlay"></div>
+        <!-- Day boxes injected here -->
+      </div>
+    </div>
+    <div id="canvas-hint">Click a day box to edit it · Drag to reposition</div>
+  </main>
+
+</div>
+
+<script src="vendor/interact.min.js"></script>
+<script src="vendor/html2canvas.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
