@@ -70,7 +70,15 @@ const DEFAULT_STYLE = {
   bgColor: '#1a1a2e', bgOpacity: 85,
   borderColor: '#9146ff', borderWidth: 2, borderRadius: 10,
   fontFamily: 'Inter', fontColor: '#ffffff', accentColor: '#9146ff',
-  dayFontSize: 14, timeFontSize: 26, titleFontSize: 13, tzFontSize: 11,
+  // Sized to still fit a landscape row's ~14%-wide boxes on a mobile-width
+  // canvas (a phone screen, not a desktop window) — the app's primary use
+  // case. These look small on a wide desktop canvas but stay legible; the
+  // reverse (desktop-tuned sizes on mobile) clips "7:00 PM" down to a couple
+  // of characters (see .day-box{overflow:hidden}), which is worse. Both
+  // width/height fit as-is —
+  // only font size was too large for how little on-screen width a mobile
+  // canvas actually has per box.
+  dayFontSize: 7, timeFontSize: 9, titleFontSize: 7, tzFontSize: 6,
   width: 14, height: 26,
 };
 
@@ -83,8 +91,14 @@ const DEFAULT_POSITIONS = [[4,37],[23,37],[42,37],[61,37],[80,37],[29,67],[57,67
 // instead stacks boxes in a single column — width overflow becomes harmless
 // because there's no horizontal neighbour left to collide with.
 const LAYOUTS = {
-  landscape: { positions: [[4,37],[23,37],[42,37],[61,37],[80,37],[29,67],[57,67]], width: 14, height: 26 },
-  square:    { positions: [[4,37],[23,37],[42,37],[61,37],[80,37],[29,67],[57,67]], width: 14, height: 26 },
+  landscape: {
+    positions: [[4,37],[23,37],[42,37],[61,37],[80,37],[29,67],[57,67]], width: 14, height: 26,
+    dayFontSize: 7, timeFontSize: 9, titleFontSize: 7, tzFontSize: 6,
+  },
+  square: {
+    positions: [[4,37],[23,37],[42,37],[61,37],[80,37],[29,67],[57,67]], width: 14, height: 26,
+    dayFontSize: 7, timeFontSize: 9, titleFontSize: 7, tzFontSize: 6,
+  },
   // 7 rows in a fixed 100% budget leaves little slack, so portrait also uses
   // smaller fonts. Box height is fixed (see applyBoxStyles) so overflow clips
   // instead of growing into the next box — that guarantees no overlap, but
@@ -215,6 +229,7 @@ function renderBox(dayKey) {
     box = buildBox(dayKey);
     canvas.appendChild(box);
     interact(box).draggable(dragConfig());
+    interact(box).resizable(resizeConfig());
   } else {
     applyBoxStyles(box, dayKey);
     fillBoxContent(box, dayKey);
@@ -239,8 +254,7 @@ function applyBoxStyles(box, dayKey) {
   Object.assign(box.style, {
     left:         `${day.position.x}%`,
     top:          `${day.position.y}%`,
-    minWidth:     `${s.width}%`,
-    width:        'auto',
+    width:        `${s.width}%`,
     height:       `${s.height}%`,
     background:   `rgba(${r},${g},${b},${alpha})`,
     border:       `${s.borderWidth}px solid ${s.borderColor}`,
@@ -264,11 +278,13 @@ function fillBoxContent(box, dayKey) {
     }).join('');
   }
 
+  const resizeHandle = `<div class="resize-handle" title="Drag to resize"></div>`;
+
   if (day.noStream) {
     box.innerHTML = `<div class="box-inner">
       <div class="box-day-name"    style="font-size:${s.dayFontSize}px;color:${s.fontColor}">${esc(DAY_SHORT[dayKey])}</div>
       <div class="box-no-stream-label" style="font-size:${Math.round(s.timeFontSize*0.6)}px;color:${s.fontColor};margin-top:6px">NO STREAM</div>
-    </div>`;
+    </div>${resizeHandle}`;
   } else {
     const timeStr = `${day.hour}:${String(day.minute).padStart(2,'0')} ${day.period}`;
     box.innerHTML = `<div class="box-inner">
@@ -277,7 +293,7 @@ function fillBoxContent(box, dayKey) {
       <div class="box-tz-label"  style="font-size:${s.tzFontSize}px">${esc(tzShort)}</div>
       ${addTZHtml ? `<div class="box-additional-times" style="font-size:${Math.round(s.tzFontSize * 1.3)}px;gap:3px 8px">${addTZHtml}</div>` : ''}
       ${day.title ? `<div class="box-title" style="font-size:${s.titleFontSize}px;margin-top:3px">${esc(day.title)}</div>` : ''}
-    </div>`;
+    </div>${resizeHandle}`;
   }
 }
 
@@ -352,10 +368,10 @@ function dragConfig() {
         const rect = canvas.getBoundingClientRect();
         const dayKey = ev.target.dataset.day;
         const day = state.days[dayKey];
-        // Boxes are width:auto/height:auto and grow to fit content, so the
-        // actual rendered size can exceed the configured style.width/height —
-        // clamp against the real size, not the nominal one, or the box can be
-        // dragged past the canvas edge (or into a neighbour) before it snaps back.
+        // Box width/height are fixed to style.width/height (see applyBoxStyles),
+        // so this now matches the configured size exactly — kept as a measured
+        // value rather than trusting style.width/height directly since it's a
+        // trivially-correct source of truth for "how much room is left".
         const elRect = ev.target.getBoundingClientRect();
         const actualW = (elRect.width  / rect.width)  * 100;
         const actualH = (elRect.height / rect.height) * 100;
@@ -384,8 +400,41 @@ function dragConfig() {
   };
 }
 
+function resizeConfig() {
+  return {
+    edges: { left: false, top: false, right: '.resize-handle', bottom: '.resize-handle' },
+    listeners: {
+      move(ev) {
+        const canvas = document.getElementById('schedule-canvas');
+        const rect = canvas.getBoundingClientRect();
+        const dayKey = ev.target.dataset.day;
+        const day = state.days[dayKey];
+        const s = day.style;
+        const dwP = (ev.deltaRect.width  / rect.width)  * 100;
+        const dhP = (ev.deltaRect.height / rect.height) * 100;
+        // Bounded the same way dragging is: can't grow past the canvas edge
+        // from the box's current position, and never below a usable minimum.
+        s.width  = Math.max(5, Math.min(s.width  + dwP, 100 - day.position.x));
+        s.height = Math.max(5, Math.min(s.height + dhP, 100 - day.position.y));
+        ev.target.style.width  = `${s.width}%`;
+        ev.target.style.height = `${s.height}%`;
+        if (dayKey === state.selectedDay) {
+          set('box-width',  Math.round(s.width  * 10) / 10);
+          set('box-height', Math.round(s.height * 10) / 10);
+        }
+      },
+      end(ev) {
+        saveToStorage();
+      },
+    },
+  };
+}
+
 function initDragging() {
-  document.querySelectorAll('.day-box').forEach(el => interact(el).draggable(dragConfig()));
+  document.querySelectorAll('.day-box').forEach(el => {
+    interact(el).draggable(dragConfig());
+    interact(el).resizable(resizeConfig());
+  });
 }
 
 // ── Background ─────────────────────────────────────────────────────────────
@@ -1065,6 +1114,25 @@ function loadFromStorage() {
           state.days[k].position.x === DEFAULT_POSITIONS[i][0] &&
           state.days[k].position.y === DEFAULT_POSITIONS[i][1]);
         if (stillLandscapeDefault) applyLayoutForCategory('portrait');
+      } else {
+        // One-time migration: configs saved before landscape/square fonts were
+        // resized for mobile still carry the old desktop-tuned sizes
+        // (14/26/13/11), which clip badly (see .day-box{overflow:hidden}) on
+        // a mobile-width canvas —
+        // this app's primary use case. Only touch a day whose fonts still
+        // exactly match the old defaults, so per-day customisation is untouched.
+        const OLD = { dayFontSize: 14, timeFontSize: 26, titleFontSize: 13, tzFontSize: 11 };
+        const layout = LAYOUTS[presetCategory(state.canvasPreset)];
+        DAY_KEYS.forEach(k => {
+          const s = state.days[k].style;
+          if (s.dayFontSize === OLD.dayFontSize && s.timeFontSize === OLD.timeFontSize &&
+              s.titleFontSize === OLD.titleFontSize && s.tzFontSize === OLD.tzFontSize) {
+            s.dayFontSize = layout.dayFontSize;
+            s.timeFontSize = layout.timeFontSize;
+            s.titleFontSize = layout.titleFontSize;
+            s.tzFontSize = layout.tzFontSize;
+          }
+        });
       }
     }
     const bg = localStorage.getItem('ss_bg');
