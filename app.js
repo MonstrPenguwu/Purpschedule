@@ -297,6 +297,37 @@ function fillBoxContent(box, dayKey) {
   }
 }
 
+// Measures how big this box's own content actually needs to be. Box
+// width/height are normally fixed (see applyBoxStyles), so this briefly
+// switches them to 'auto' to read the box's natural shrink-to-fit size, then
+// restores the fixed values. Includes a ~15% buffer so "the minimum" isn't a
+// razor-tight fit with zero breathing room. Used both to floor the resize
+// handle/number inputs (so a box can never be shrunk smaller than its own
+// text needs, which used to clip it down to unreadable) and by "Fit to
+// Content" to size a box directly.
+function measureNaturalBoxSize(dayKey) {
+  const canvas = document.getElementById('schedule-canvas');
+  const box = canvas.querySelector(`.day-box[data-day="${dayKey}"]`);
+  if (!box) return { width: 5, height: 5 };
+  const canvasRect = canvas.getBoundingClientRect();
+
+  const prevWidth  = box.style.width;
+  const prevHeight = box.style.height;
+  box.style.width  = 'auto';
+  box.style.height = 'auto';
+
+  const naturalRect = box.getBoundingClientRect();
+
+  box.style.width  = prevWidth;
+  box.style.height = prevHeight;
+
+  const BUFFER = 1.15;
+  return {
+    width:  Math.min(100, (naturalRect.width  / canvasRect.width)  * 100 * BUFFER),
+    height: Math.min(100, (naturalRect.height / canvasRect.height) * 100 * BUFFER),
+  };
+}
+
 function highlightSelected() {
   document.querySelectorAll('.day-box').forEach(b => {
     b.classList.toggle('selected', b.dataset.day === state.selectedDay);
@@ -401,9 +432,16 @@ function dragConfig() {
 }
 
 function resizeConfig() {
+  let minSize = { width: 5, height: 5 };
   return {
     edges: { left: false, top: false, right: '.resize-handle', bottom: '.resize-handle' },
     listeners: {
+      start(ev) {
+        // Measured once per gesture, not per move event — it requires a
+        // reflow (temporarily un-fixing the box's size), too expensive to
+        // repeat on every pointer move.
+        minSize = measureNaturalBoxSize(ev.target.dataset.day);
+      },
       move(ev) {
         const canvas = document.getElementById('schedule-canvas');
         const rect = canvas.getBoundingClientRect();
@@ -413,9 +451,12 @@ function resizeConfig() {
         const dwP = (ev.deltaRect.width  / rect.width)  * 100;
         const dhP = (ev.deltaRect.height / rect.height) * 100;
         // Bounded the same way dragging is: can't grow past the canvas edge
-        // from the box's current position, and never below a usable minimum.
-        s.width  = Math.max(5, Math.min(s.width  + dwP, 100 - day.position.x));
-        s.height = Math.max(5, Math.min(s.height + dhP, 100 - day.position.y));
+        // from the box's current position, and never below what the box's
+        // own content needs (minSize) — previously the floor was a flat 5%,
+        // which let a box shrink small enough to clip its own text down to
+        // a single letter.
+        s.width  = Math.max(minSize.width,  Math.min(s.width  + dwP, 100 - day.position.x));
+        s.height = Math.max(minSize.height, Math.min(s.height + dhP, 100 - day.position.y));
         ev.target.style.width  = `${s.width}%`;
         ev.target.style.height = `${s.height}%`;
         if (dayKey === state.selectedDay) {
@@ -571,11 +612,31 @@ function bindDayControls() {
     const el = document.getElementById(id);
     const ev = (el.tagName === 'INPUT' && el.type === 'range') ? 'input' : 'change';
     el.addEventListener(ev, e => {
-      const val = type === 'num' ? parseFloat(e.target.value) : e.target.value;
+      let val = type === 'num' ? parseFloat(e.target.value) : e.target.value;
+      // Same floor as the resize handle — typing a value smaller than the
+      // box's own content needs would otherwise clip it down to unreadable.
+      if (id === 'box-width' || id === 'box-height') {
+        const min = measureNaturalBoxSize(state.selectedDay);
+        val = Math.max(val, id === 'box-width' ? min.width : min.height);
+        e.target.value = Math.round(val * 10) / 10;
+      }
       state.days[state.selectedDay].style[key] = val;
       if (id === 'box-bg-opacity') setVal('box-opacity-val', `${Math.round(val)}%`);
       renderBox(state.selectedDay); saveToStorage();
     });
+  });
+
+  // Fit to Content — sizes the box to exactly hug its current text at its
+  // current font size, with the same breathing-room buffer used as the
+  // resize floor. A reliable starting point instead of eyeballing a drag.
+  document.getElementById('fit-content-btn').addEventListener('click', () => {
+    const day = state.days[state.selectedDay];
+    const fit = measureNaturalBoxSize(state.selectedDay);
+    day.style.width  = Math.round(fit.width  * 10) / 10;
+    day.style.height = Math.round(fit.height * 10) / 10;
+    set('box-width',  day.style.width);
+    set('box-height', day.style.height);
+    renderBox(state.selectedDay); saveToStorage();
   });
 
   // Apply to all
