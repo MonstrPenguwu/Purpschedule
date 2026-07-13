@@ -89,6 +89,7 @@ function mkDay(i) {
 const state = {
   background: { image: null, brightness: 100, overlayColor: '#000000', overlayOpacity: 0, posX: 50, posY: 50, scale: 100 },
   canvasPreset: '16:9',
+  exportFilename: 'stream-schedule',
   mainTimezone: 'America/New_York',
   additionalTimezones: [],
   selectedDay: 'monday',
@@ -133,6 +134,11 @@ function tzLabel(value) {
 function hex2rgb(hex) {
   const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
   return m ? { r: parseInt(m[1],16), g: parseInt(m[2],16), b: parseInt(m[3],16) } : {r:0,g:0,b:0};
+}
+
+function sanitizeFilename(name) {
+  const cleaned = String(name || '').trim().replace(/[\\/:*?"<>|]/g, '');
+  return cleaned || 'stream-schedule';
 }
 
 function esc(str) {
@@ -670,6 +676,10 @@ function bindTZControls() {
 }
 
 function bindExportControls() {
+  document.getElementById('export-filename').addEventListener('input', e => {
+    state.exportFilename = e.target.value; saveToStorage();
+  });
+
   document.getElementById('export-format').addEventListener('change', e => {
     document.getElementById('quality-row').style.display = e.target.value === 'jpeg' ? 'flex' : 'none';
   });
@@ -876,7 +886,7 @@ async function exportImage() {
         const url = URL.createObjectURL(blob);
         const a   = document.createElement('a');
         a.href     = url;
-        a.download = `stream-schedule.${format}`;
+        a.download = `${sanitizeFilename(state.exportFilename)}.${format}`;
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -908,6 +918,7 @@ function saveToStorage() {
     const data = {
       background: { ...state.background, image: null },
       canvasPreset: state.canvasPreset,
+      exportFilename: state.exportFilename,
       mainTimezone: state.mainTimezone,
       additionalTimezones: state.additionalTimezones,
       days: state.days,
@@ -928,6 +939,7 @@ function loadFromStorage() {
       const d = JSON.parse(raw);
       if (d.background)           Object.assign(state.background, d.background);
       if (d.canvasPreset)         state.canvasPreset         = d.canvasPreset;
+      if (d.exportFilename)       state.exportFilename       = d.exportFilename;
       if (d.mainTimezone)         state.mainTimezone         = d.mainTimezone;
       if (d.additionalTimezones)  state.additionalTimezones  = d.additionalTimezones;
       if (d.days) DAY_KEYS.forEach((k, i) => {
@@ -946,6 +958,7 @@ function saveConfigFile() {
   const data = {
     background: { ...state.background },
     canvasPreset: state.canvasPreset,
+    exportFilename: state.exportFilename,
     mainTimezone: state.mainTimezone,
     additionalTimezones: state.additionalTimezones,
     days: state.days,
@@ -964,6 +977,7 @@ function loadConfigFile(file) {
       const d = JSON.parse(e.target.result);
       if (d.background)          Object.assign(state.background, d.background);
       if (d.canvasPreset)        state.canvasPreset        = d.canvasPreset;
+      if (d.exportFilename)      state.exportFilename      = d.exportFilename;
       if (d.mainTimezone)        state.mainTimezone        = d.mainTimezone;
       if (d.additionalTimezones) state.additionalTimezones = d.additionalTimezones;
       if (d.days) DAY_KEYS.forEach((k, i) => {
@@ -987,6 +1001,7 @@ function syncAllUI() {
   set('bg-brightness',    bg.brightness);      setVal('bg-brightness-val',    `${bg.brightness}%`);
   set('bg-scale',         bg.scale ?? 100);    setVal('bg-scale-val',         `${bg.scale ?? 100}%`);
   set('canvas-size',      state.canvasPreset);
+  set('export-filename',  state.exportFilename);
   applyCanvasPreset(state.canvasPreset);
   applyBackground();
   populateDayVisToggles();
