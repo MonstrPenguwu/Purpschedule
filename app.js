@@ -90,6 +90,7 @@ const state = {
   background: { image: null, brightness: 100, overlayColor: '#000000', overlayOpacity: 0, posX: 50, posY: 50, scale: 100 },
   canvasPreset: '16:9',
   exportFilename: 'stream-schedule',
+  discordWebhook: '',
   mainTimezone: 'America/New_York',
   additionalTimezones: [],
   selectedDay: 'monday',
@@ -689,6 +690,12 @@ function bindExportControls() {
   });
 
   document.getElementById('export-btn').addEventListener('click', exportImage);
+
+  document.getElementById('discord-webhook').addEventListener('input', e => {
+    state.discordWebhook = e.target.value; saveToStorage();
+  });
+  document.getElementById('discord-btn').addEventListener('click', postToDiscord);
+
   document.getElementById('save-config-btn').addEventListener('click', saveConfigFile);
   document.getElementById('load-config-btn').addEventListener('click', () => document.getElementById('config-upload').click());
   document.getElementById('config-upload').addEventListener('change', e => {
@@ -767,14 +774,16 @@ function populateDayVisToggles() {
 
 // ── Export ─────────────────────────────────────────────────────────────────
 
-async function exportImage() {
-  const btn       = document.getElementById('export-btn');
+// Hides editor chrome, rasterises #schedule-canvas via html2canvas, and — when a
+// background image is present — composites it manually at native resolution
+// (see two-pass compositing note below). Returns the finished canvas. All hidden
+// UI and inline styles are restored before this resolves, whether it succeeds or throws.
+async function renderScheduleCanvas() {
   const sidebar   = document.getElementById('sidebar');
   const hint      = document.getElementById('canvas-hint');
   const mobileBtn = document.getElementById('mobile-menu-btn');
   const mobOver   = document.getElementById('mobile-overlay');
 
-  btn.textContent = '⏳ Rendering…'; btn.disabled = true;
   sidebar.style.display   = 'none';
   hint.style.display      = 'none';
   mobileBtn.style.display = 'none';
@@ -787,8 +796,6 @@ async function exportImage() {
   const canvas    = document.getElementById('schedule-canvas');
   const bgLayer   = document.getElementById('bg-layer');
   const bgOverlay = document.getElementById('bg-overlay');
-  const format    = document.getElementById('export-format').value;
-  const quality   = parseFloat(document.getElementById('export-quality').value);
   const scale     = parseFloat(document.getElementById('export-scale').value);
   const preset    = CANVAS_PRESETS[state.canvasPreset];
   const rect      = canvas.getBoundingClientRect();
@@ -859,9 +866,33 @@ async function exportImage() {
       exportCanvas = comp;
     }
 
-    const mime  = format === 'jpeg' ? 'image/jpeg' : 'image/png';
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    return exportCanvas;
+  } finally {
+    bgLayer.style.backgroundImage    = savedBgImg;
+    bgLayer.style.backgroundSize     = savedBgSize;
+    bgLayer.style.backgroundPosition = savedBgPos;
+    bgLayer.style.filter             = savedBgFilter;
+    bgOverlay.style.background       = savedOverlay;
+    canvas.style.background          = savedCanvasBg;
+    sidebar.style.display   = '';
+    hint.style.display      = '';
+    mobileBtn.style.display = '';
+    if (mobOver) mobOver.style.display = '';
+    highlightSelected();
+  }
+}
+
+async function exportImage() {
+  const btn = document.getElementById('export-btn');
+  btn.textContent = '⏳ Rendering…'; btn.disabled = true;
+
+  try {
+    const exportCanvas = await renderScheduleCanvas();
+    const format  = document.getElementById('export-format').value;
+    const quality = parseFloat(document.getElementById('export-quality').value);
+    const mime    = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const isIOS   = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
     if (isIOS) {
       const dataUrl = exportCanvas.toDataURL('image/png');
@@ -896,18 +927,36 @@ async function exportImage() {
   } catch (err) {
     alert('Export failed: ' + err.message);
   } finally {
-    bgLayer.style.backgroundImage    = savedBgImg;
-    bgLayer.style.backgroundSize     = savedBgSize;
-    bgLayer.style.backgroundPosition = savedBgPos;
-    bgLayer.style.filter             = savedBgFilter;
-    bgOverlay.style.background       = savedOverlay;
-    canvas.style.background          = savedCanvasBg;
-    sidebar.style.display   = '';
-    hint.style.display      = '';
-    mobileBtn.style.display = '';
-    if (mobOver) mobOver.style.display = '';
-    highlightSelected();
     btn.textContent = '💾 Export as Image'; btn.disabled = false;
+  }
+}
+
+async function postToDiscord() {
+  const webhookUrl = state.discordWebhook.trim();
+  if (!webhookUrl) { alert('Add a Discord webhook URL first.'); return; }
+
+  const btn = document.getElementById('discord-btn');
+  const originalLabel = btn.textContent;
+  btn.textContent = '⏳ Posting…'; btn.disabled = true;
+
+  try {
+    const exportCanvas = await renderScheduleCanvas();
+    const format  = document.getElementById('export-format').value;
+    const quality = parseFloat(document.getElementById('export-quality').value);
+    const mime    = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const blob    = await new Promise(resolve => exportCanvas.toBlob(resolve, mime, quality));
+
+    const formData = new FormData();
+    formData.append('file', blob, `${sanitizeFilename(state.exportFilename)}.${format}`);
+
+    const res = await fetch(webhookUrl, { method: 'POST', body: formData });
+    if (!res.ok) throw new Error(`Discord returned ${res.status}`);
+
+    btn.textContent = '✅ Posted!';
+    setTimeout(() => { btn.textContent = originalLabel; btn.disabled = false; }, 1500);
+  } catch (err) {
+    alert('Failed to post to Discord: ' + err.message);
+    btn.textContent = originalLabel; btn.disabled = false;
   }
 }
 
@@ -919,6 +968,7 @@ function saveToStorage() {
       background: { ...state.background, image: null },
       canvasPreset: state.canvasPreset,
       exportFilename: state.exportFilename,
+      discordWebhook: state.discordWebhook,
       mainTimezone: state.mainTimezone,
       additionalTimezones: state.additionalTimezones,
       days: state.days,
@@ -940,6 +990,7 @@ function loadFromStorage() {
       if (d.background)           Object.assign(state.background, d.background);
       if (d.canvasPreset)         state.canvasPreset         = d.canvasPreset;
       if (d.exportFilename)       state.exportFilename       = d.exportFilename;
+      if (d.discordWebhook)       state.discordWebhook       = d.discordWebhook;
       if (d.mainTimezone)         state.mainTimezone         = d.mainTimezone;
       if (d.additionalTimezones)  state.additionalTimezones  = d.additionalTimezones;
       if (d.days) DAY_KEYS.forEach((k, i) => {
@@ -1002,6 +1053,7 @@ function syncAllUI() {
   set('bg-scale',         bg.scale ?? 100);    setVal('bg-scale-val',         `${bg.scale ?? 100}%`);
   set('canvas-size',      state.canvasPreset);
   set('export-filename',  state.exportFilename);
+  set('discord-webhook',  state.discordWebhook);
   applyCanvasPreset(state.canvasPreset);
   applyBackground();
   populateDayVisToggles();

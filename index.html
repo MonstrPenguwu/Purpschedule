@@ -284,6 +284,16 @@
       </div>
 
       <div class="section">
+        <div class="section-label">Post to Discord</div>
+        <p class="hint">Sends the exported image to a Discord channel via webhook. Stored only in this browser — never included in downloaded/shared config files.</p>
+        <div class="control-row">
+          <label>Webhook URL</label>
+          <input type="password" id="discord-webhook" placeholder="https://discord.com/api/webhooks/...">
+        </div>
+        <button class="btn-secondary" id="discord-btn">📤 Post to Discord</button>
+      </div>
+
+      <div class="section">
         <div class="section-label">Configuration</div>
         <p class="hint">Config saves automatically to your browser. Use these to transfer between devices.</p>
         <button class="btn-secondary" id="save-config-btn">💾 Download Config (.json)</button>

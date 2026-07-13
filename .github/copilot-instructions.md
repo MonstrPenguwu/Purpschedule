@@ -28,6 +28,8 @@ Serves on **http://localhost:5173** via `npx serve`. Also accessible on the loca
 A single global `state` object holds everything:
 - `state.background` — image (base64), brightness, overlayColor/opacity, posX/posY, **scale**
 - `state.canvasPreset` — one of `'16:9' | '16:9-720' | '1:1' | '9:16'`
+- `state.exportFilename` — download/webhook filename base (sanitized at use time, not at rest)
+- `state.discordWebhook` — Discord webhook URL; **localStorage-only**, never written to the shareable config JSON (see Persistence)
 - `state.mainTimezone` — IANA timezone string
 - `state.additionalTimezones` — array of IANA strings for auto-converted times
 - `state.days` — object keyed by `DAY_KEYS` (`monday`–`sunday`), each with:
@@ -71,17 +73,23 @@ A single global `state` object holds everything:
 - `tzShortName(tz)` — extracts short abbreviation (e.g. `ET`, `PST`) via `Intl.DateTimeFormat`.
 
 ### Export
-- `exportImage()` uses **html2canvas** with a computed `exportScale` that maps the CSS canvas size to the target preset resolution (e.g. 1920×1080 at 2×).
-- Sidebar, hint, and mobile toggle button are hidden before capture and restored in `finally`.
-- **Background image sharpness** — html2canvas blurs CSS background images by capturing them at CSS pixel size then scaling up. Fix: when a background image is present, a two-pass composite is used:
+- `renderScheduleCanvas()` is the shared rasteriser: hides editor chrome, runs **html2canvas** with a computed `exportScale` that maps the CSS canvas size to the target preset resolution (e.g. 1920×1080 at 2×), and returns the finished canvas. All hidden UI and inline styles are restored in `finally` before it resolves — used by both `exportImage()` (download) and `postToDiscord()` (webhook post) so the two share one rendering path.
+- **Background image sharpness** — html2canvas blurs CSS background images by capturing them at CSS pixel size then scaling up. Fix: when a background image is present, a two-pass composite is used inside `renderScheduleCanvas()`:
   1. `#bg-layer` backgroundImage is set to `none` and `#schedule-canvas` background made transparent so html2canvas captures only the day boxes (transparent background, `backgroundColor: null`).
   2. A new canvas is built manually: base `#1a1a2e` fill → `drawImage()` of the source image at native resolution using the same `background-size`/`background-position` maths as CSS → colour overlay → html2canvas output drawn on top.
   - Position formula matches CSS percentage semantics: `drawX = (canvasW - drawW) * (posX / 100)`.
   - Brightness applied via `ctx.filter = 'brightness(n%)'` before `drawImage`, reset after.
   - All saved inline styles (`backgroundImage`, `backgroundSize`, `backgroundPosition`, `filter`, overlay, canvas background) are restored in `finally`.
-- **iOS**: `<a download>` is not supported by Safari. Instead the image is rendered as PNG (JPEG causes viewer issues in iOS Photos) and shown in a full-screen in-page overlay; user long-presses to "Save to Photos".
-- **Android / Desktop**: uses `canvas.toBlob()` + `URL.createObjectURL()` (more reliable than large data URLs).
+- **Filename** — `state.exportFilename` (default `stream-schedule`) is set via the "File Name" field on the Save tab. `sanitizeFilename()` strips path-unsafe characters (`\ / : * ? " < > |`) and falls back to the default if the result is empty; the raw (unsanitized) text is what's persisted/shown in the input.
+- **iOS**: `<a download>` is not supported by Safari. Instead the image is rendered as PNG (JPEG causes viewer issues in iOS Photos) and shown in a full-screen in-page overlay; user long-presses to "Save to Photos". Filename doesn't apply here since there's no programmatic save.
+- **Android / Desktop**: uses `canvas.toBlob()` + `URL.createObjectURL()` (more reliable than large data URLs); `a.download` uses the sanitized filename.
 - iOS detection: `/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)` — the second condition catches iPadOS.
+
+### Post to Discord
+- `postToDiscord()` reuses `renderScheduleCanvas()`, converts the result to a `Blob` via `toBlob()`, and `fetch()`s it as multipart `FormData` (field name `file`) directly to a Discord **webhook** URL — no bot/server required, and Discord's webhook endpoint accepts cross-origin browser requests.
+- `state.discordWebhook` is stored **only** in `localStorage` (via `saveToStorage`/`loadFromStorage`) — it is deliberately **excluded** from `saveConfigFile()`/`loadConfigFile()` (the downloadable/shareable JSON) so sharing a schedule template never leaks someone's webhook URL.
+- The `#discord-webhook` input is `type="password"` to avoid shoulder-surfing/screen-share exposure of the URL.
+- Button gives inline feedback (`⏳ Posting…` → `✅ Posted!` / `alert()` on failure) rather than blocking the whole UI.
 
 ### Background Image Controls
 - `applyBackground()` sets `backgroundImage`, `backgroundSize` (`${scale}%`), `backgroundPosition`, and `filter` as inline styles on `#bg-layer`.
@@ -96,6 +104,7 @@ A single global `state` object holds everything:
 - Background image stored separately as base64 (`ss_bg`); silently skipped if storage quota is exceeded.
 - `saveConfigFile()` / `loadConfigFile(file)` — JSON download/upload for cross-device transfer.
 - When loading old configs that predate a new state property (e.g. `scale`), `Object.assign` leaves the default value intact since the key is absent from the saved object.
+- **Not every state field belongs in all three places.** `exportFilename` is saved in both `localStorage` and the shareable config JSON. `discordWebhook` is a secret — it's saved in `localStorage` only and intentionally left out of `saveConfigFile()`/`loadConfigFile()`. When adding a new field, decide deliberately whether it's shareable or per-device/sensitive.
 
 ## Mobile Layout
 - On screens ≤700px the sidebar becomes a **fixed position slide-in drawer** (`position: fixed; left: -100%`).
