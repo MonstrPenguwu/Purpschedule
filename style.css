@@ -490,7 +490,9 @@ input[type="color"] {
 
 .box-additional-times {
   display: flex;
-  flex-direction: column;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: center;
   align-items: center;
   gap: 2px;
   opacity: 0.95;
