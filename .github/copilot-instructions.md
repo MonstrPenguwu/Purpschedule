@@ -5,30 +5,32 @@ A **client-side-only, no-build-step** web app that lets streamers design a weekl
 
 ## File Structure
 ```
-app.js                  — All application logic (single file, ~700 lines)
+app.js                  — All application logic (single file, ~850 lines)
 index.html              — Single-page UI shell; injects all controls & canvas
 style.css               — Full dark-themed stylesheet; CSS variables in :root
 vendor/
   interact.min.js       — Drag-and-drop library (interact.js)
   html2canvas.min.js    — DOM-to-canvas export library
 start.bat               — Dev launcher: `npx serve -p 5173 -s .`
+.github/
+  copilot-instructions.md — This file
 ```
 
 ## Running the App
 ```bat
 start.bat       ← double-click, or run in terminal
 ```
-Serves on **http://localhost:5173** via `npx serve`. No install step required.
+Serves on **http://localhost:5173** via `npx serve`. Also accessible on the local network (shown in terminal output) — useful for mobile testing. No install step required.
 
 ## Architecture
 
 ### State
 A single global `state` object holds everything:
-- `state.background` — image (base64), brightness, overlay color/opacity, pan position
+- `state.background` — image (base64), brightness, overlayColor/opacity, posX/posY, **scale**
 - `state.canvasPreset` — one of `'16:9' | '16:9-720' | '1:1' | '9:16'`
 - `state.mainTimezone` — IANA timezone string
 - `state.additionalTimezones` — array of IANA strings for auto-converted times
-- `state.days` — object keyed by `DAY_KEYS` (`monday`–`friday`), each with:
+- `state.days` — object keyed by `DAY_KEYS` (`monday`–`sunday`), each with:
   - `enabled`, `noStream`, `title`, `hour`, `minute`, `period`
   - `position: { x, y }` — percentage-based position on canvas
   - `style` — per-box style object (colors, fonts, sizes, border, dimensions)
@@ -70,13 +72,32 @@ A single global `state` object holds everything:
 
 ### Export
 - `exportImage()` uses **html2canvas** with a computed `exportScale` that maps the CSS canvas size to the target preset resolution (e.g. 1920×1080 at 2×).
-- Sidebar and selection highlights are hidden before capture and restored after.
-- Supports PNG and JPEG (with quality slider).
+- Sidebar, hint, and mobile toggle button are hidden before capture and restored in `finally`.
+- **iOS**: `<a download>` is not supported by Safari. Instead the image is rendered as PNG (JPEG causes viewer issues in iOS Photos) and shown in a full-screen in-page overlay; user long-presses to "Save to Photos".
+- **Android / Desktop**: uses `canvas.toBlob()` + `URL.createObjectURL()` (more reliable than large data URLs).
+- iOS detection: `/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)` — the second condition catches iPadOS.
+
+### Background Image Controls
+- `applyBackground()` sets `backgroundImage`, `backgroundSize` (`${scale}%`), `backgroundPosition`, and `filter` as inline styles on `#bg-layer`.
+- **Pan / Zoom mode** (`#pan-bg-btn`): disables pointer events on `.day-box` elements so the canvas can be dragged to reposition the background.
+  - Mouse drag → pan; **mouse wheel** → zoom (desktop).
+  - Single-finger drag → pan; **two-finger pinch** → zoom (mobile).
+- Scale range: 20–300%. Stored as `state.background.scale` (default 100). Persisted to localStorage.
+- Clearing the background resets scale to 100.
 
 ### Persistence
 - `saveToStorage()` / `loadFromStorage()` — `localStorage` under keys `ss_config` and `ss_bg`.
 - Background image stored separately as base64 (`ss_bg`); silently skipped if storage quota is exceeded.
 - `saveConfigFile()` / `loadConfigFile(file)` — JSON download/upload for cross-device transfer.
+- When loading old configs that predate a new state property (e.g. `scale`), `Object.assign` leaves the default value intact since the key is absent from the saved object.
+
+## Mobile Layout
+- On screens ≤700px the sidebar becomes a **fixed position slide-in drawer** (`position: fixed; left: -100%`).
+- `#mobile-menu-btn` (☰, fixed top-left, z-index 198) toggles the sidebar open/closed.
+- `#mobile-overlay` (semi-transparent backdrop, z-index 199) closes the sidebar when tapped.
+- Tapping a day box on mobile auto-opens the sidebar and switches to the Day tab.
+- The mobile button and overlay are hidden via `style.display = 'none'` during export and restored in `finally`.
+- Desktop is unaffected: the `.mobile-open` class sets `left: 0` which has no effect when `position` is not `fixed`.
 
 ## UI Structure (index.html)
 - **Sidebar tabs**: BG (background & canvas), Day (per-day style & time), TZ (timezones), Save (export & config)
@@ -87,11 +108,12 @@ A single global `state` object holds everything:
 - All colours, spacing tokens, and border radii are defined as CSS variables in `:root` inside `style.css`.
 - Primary accent: `--purple: #9146ff` (Twitch brand purple).
 - Dark theme throughout; background levels: `--bg-app` → `--bg-sidebar` → `--bg-section` → `--bg-input`.
+- Mobile styles live at the bottom of `style.css` under `@media (max-width: 700px)`.
 
 ## Key Constants
-- `DAY_KEYS`: `['monday','tuesday','wednesday','thursday','friday']`
+- `DAY_KEYS`: `['monday','tuesday','wednesday','thursday','friday','saturday','sunday']`
 - `CANVAS_PRESETS`: maps preset key → `{ w, h, ratio }` for both CSS and export resolution
-- `DEFAULT_POSITIONS`: default `[x%, y%]` for each of the 5 day boxes
+- `DEFAULT_POSITIONS`: default `[x%, y%]` for each of the 7 day boxes — Mon–Fri in a row at y=37%, Sat/Sun centred below at y=67%
 - `TIMEZONES`: grouped array of `{ group, zones: [{ label, value }] }` used to populate both TZ selects
 
 ## Google Fonts Loaded
@@ -103,4 +125,5 @@ Inter, Oswald, Bebas Neue, Roboto, Montserrat, Rajdhani, Exo 2, Orbitron, Anton,
 - All user-facing strings rendered into HTML go through `esc()` (XSS sanitisation).
 - The `pickImageFile` helper creates a hidden `<input type="file">`, clicks it programmatically, and cleans up after use — avoids persistent hidden inputs in the DOM.
 - `loadImageFile` uses `FileReader.readAsDataURL` to store images as base64.
-- Pan mode temporarily disables pointer events on all `.day-box` elements so drag-to-reposition the background works without accidentally moving boxes.
+- Adding a new day: update `DAY_KEYS`, `DAY_LABELS`, `DAY_SHORT`, and `DEFAULT_POSITIONS` — all rendering, storage, and UI toggle loops are driven by `DAY_KEYS` and require no other changes.
+- Adding a new `state.background` property: initialise it in the `state` declaration; `Object.assign` in `loadFromStorage`/`loadConfigFile` will preserve the default for old configs automatically.
