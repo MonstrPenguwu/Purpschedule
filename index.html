@@ -36,8 +36,9 @@
         </div>
         <div style="display:flex;gap:6px">
           <button class="btn-secondary" id="clear-bg-btn" style="flex:1">✕ Clear</button>
-          <button class="btn-secondary" id="pan-bg-btn" style="flex:1">✥ Reposition</button>
+          <button class="btn-secondary" id="pan-bg-btn" style="flex:1">✥ Pan / Zoom</button>
         </div>
+        <p class="hint" style="margin-top:6px">Drag to pan &middot; scroll or pinch to zoom</p>
       </div>
 
       <div class="section">
@@ -47,6 +48,13 @@
           <div class="range-row">
             <input type="range" id="bg-brightness" min="10" max="100" value="100">
             <span id="bg-brightness-val">100%</span>
+          </div>
+        </div>
+        <div class="control-row">
+          <label>Scale</label>
+          <div class="range-row">
+            <input type="range" id="bg-scale" min="20" max="300" value="100">
+            <span id="bg-scale-val">100%</span>
           </div>
         </div>
         <div class="control-row">
@@ -89,6 +97,8 @@
         <button class="day-btn" data-day="wednesday">Wed</button>
         <button class="day-btn" data-day="thursday">Thu</button>
         <button class="day-btn" data-day="friday">Fri</button>
+        <button class="day-btn" data-day="saturday">Sat</button>
+        <button class="day-btn" data-day="sunday">Sun</button>
       </div>
 
       <div class="section">

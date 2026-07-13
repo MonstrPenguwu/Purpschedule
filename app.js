@@ -6,9 +6,9 @@
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
-const DAY_KEYS   = ['monday','tuesday','wednesday','thursday','friday'];
-const DAY_LABELS = { monday:'Monday', tuesday:'Tuesday', wednesday:'Wednesday', thursday:'Thursday', friday:'Friday' };
-const DAY_SHORT  = { monday:'MON', tuesday:'TUE', wednesday:'WED', thursday:'THU', friday:'FRI' };
+const DAY_KEYS   = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+const DAY_LABELS = { monday:'Monday', tuesday:'Tuesday', wednesday:'Wednesday', thursday:'Thursday', friday:'Friday', saturday:'Saturday', sunday:'Sunday' };
+const DAY_SHORT  = { monday:'MON', tuesday:'TUE', wednesday:'WED', thursday:'THU', friday:'FRI', saturday:'SAT', sunday:'SUN' };
 
 const CANVAS_PRESETS = {
   '16:9':     { w:1920, h:1080, ratio:'16/9' },
@@ -75,7 +75,7 @@ const DEFAULT_STYLE = {
   width: 14, height: 26,
 };
 
-const DEFAULT_POSITIONS = [[4,37],[23,37],[42,37],[61,37],[80,37]];
+const DEFAULT_POSITIONS = [[4,37],[23,37],[42,37],[61,37],[80,37],[29,67],[57,67]];
 
 function mkDay(i) {
   return {
@@ -87,7 +87,7 @@ function mkDay(i) {
 }
 
 const state = {
-  background: { image: null, brightness: 100, overlayColor: '#000000', overlayOpacity: 0, posX: 50, posY: 50 },
+  background: { image: null, brightness: 100, overlayColor: '#000000', overlayOpacity: 0, posX: 50, posY: 50, scale: 100 },
   canvasPreset: '16:9',
   mainTimezone: 'America/New_York',
   additionalTimezones: [],
@@ -341,6 +341,7 @@ function applyBackground() {
   const bgLayer = document.getElementById('bg-layer');
   const overlay = document.getElementById('bg-overlay');
   bgLayer.style.backgroundImage    = state.background.image ? `url(${state.background.image})` : 'none';
+  bgLayer.style.backgroundSize     = `${state.background.scale}%`;
   bgLayer.style.backgroundPosition = `${state.background.posX}% ${state.background.posY}%`;
   bgLayer.style.filter              = `brightness(${state.background.brightness}%)`;
   const {r,g,b} = hex2rgb(state.background.overlayColor);
@@ -518,6 +519,8 @@ function bindBackgroundControls() {
   document.getElementById('clear-bg-btn').addEventListener('click', () => {
     state.background.image = null;
     state.background.posX = 50; state.background.posY = 50;
+    state.background.scale = 100;
+    set('bg-scale', 100); setVal('bg-scale-val', '100%');
     exitPanMode(); applyBackground(); saveToStorage();
   });
 
@@ -530,7 +533,7 @@ function bindBackgroundControls() {
   function exitPanMode() {
     panMode = false; panDragging = false;
     panBtn.classList.remove('active');
-    panBtn.textContent = '\u2725 Reposition';
+    panBtn.textContent = '\u2725 Pan / Zoom';
     canvas.style.cursor = '';
     document.querySelectorAll('.day-box').forEach(el => el.style.pointerEvents = '');
   }
@@ -574,12 +577,49 @@ function bindBackgroundControls() {
   window.addEventListener('mousemove', e => panMove(e.clientX, e.clientY));
   window.addEventListener('mouseup', panEnd);
 
-  // Touch
+  // Mouse wheel zoom in pan mode
+  canvas.addEventListener('wheel', e => {
+    if (!panMode || !state.background.image) return;
+    e.preventDefault();
+    state.background.scale = Math.max(20, Math.min(300,
+      Math.round(state.background.scale - e.deltaY * 0.15)
+    ));
+    set('bg-scale', state.background.scale);
+    setVal('bg-scale-val', `${state.background.scale}%`);
+    applyBackground();
+  }, { passive: false });
+
+  // Touch: single-finger pan + two-finger pinch-to-zoom
+  let pinchStartDist = 0, pinchStartScale = 100;
   canvas.addEventListener('touchstart', e => {
-    if (panStart(e.touches[0].clientX, e.touches[0].clientY)) e.preventDefault();
+    if (e.touches.length === 2 && panMode && state.background.image) {
+      pinchStartDist  = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      pinchStartScale = state.background.scale;
+      e.preventDefault();
+    } else if (panStart(e.touches[0].clientX, e.touches[0].clientY)) {
+      e.preventDefault();
+    }
   }, { passive: false });
   window.addEventListener('touchmove', e => {
-    if (panDragging) { panMove(e.touches[0].clientX, e.touches[0].clientY); e.preventDefault(); }
+    if (e.touches.length === 2 && panMode && state.background.image) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      state.background.scale = Math.max(20, Math.min(300,
+        Math.round(pinchStartScale * dist / pinchStartDist)
+      ));
+      set('bg-scale', state.background.scale);
+      setVal('bg-scale-val', `${state.background.scale}%`);
+      applyBackground();
+      e.preventDefault();
+    } else if (panDragging) {
+      panMove(e.touches[0].clientX, e.touches[0].clientY);
+      e.preventDefault();
+    }
   }, { passive: false });
   window.addEventListener('touchend', panEnd);
 
@@ -596,6 +636,12 @@ function bindBackgroundControls() {
   document.getElementById('bg-brightness').addEventListener('input', e => {
     state.background.brightness = parseInt(e.target.value, 10);
     setVal('bg-brightness-val', `${e.target.value}%`);
+    applyBackground(); saveToStorage();
+  });
+
+  document.getElementById('bg-scale').addEventListener('input', e => {
+    state.background.scale = parseInt(e.target.value, 10);
+    setVal('bg-scale-val', `${e.target.value}%`);
     applyBackground(); saveToStorage();
   });
 
@@ -875,6 +921,7 @@ function syncAllUI() {
   set('overlay-opacity',  bg.overlayOpacity);  setVal('overlay-opacity-val',  `${bg.overlayOpacity}%`);
   set('overlay-color',    bg.overlayColor);
   set('bg-brightness',    bg.brightness);      setVal('bg-brightness-val',    `${bg.brightness}%`);
+  set('bg-scale',         bg.scale ?? 100);    setVal('bg-scale-val',         `${bg.scale ?? 100}%`);
   set('canvas-size',      state.canvasPreset);
   applyCanvasPreset(state.canvasPreset);
   applyBackground();
