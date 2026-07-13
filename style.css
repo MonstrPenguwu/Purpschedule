@@ -254,6 +254,12 @@ input[type="color"] {
 .btn-secondary:hover { background: var(--bg-hover); color: var(--text); border-color: var(--purple); }
 .btn-secondary.active { background: var(--purple); color: #fff; border-color: var(--purple); }
 
+.span-toggle-row {
+  display: flex;
+  gap: 6px;
+}
+.span-toggle-row .span-btn { width: auto; flex: 1; }
+
 .btn-export { font-size: 13px; padding: 10px 14px; margin-top: 10px; }
 
 .btn-icon {
@@ -456,6 +462,10 @@ input[type="color"] {
 .day-box.selected {
   outline: 2px dashed rgba(255,255,255,0.75);
   outline-offset: 2px;
+}
+
+.day-box.grid-mode {
+  cursor: pointer;
 }
 
 .resize-handle {

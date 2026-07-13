@@ -130,6 +130,7 @@ function applyLayoutForCategory(category) {
     state.days[k].position = { x: layout.positions[i][0], y: layout.positions[i][1] };
     state.days[k].style.width  = layout.width;
     state.days[k].style.height = layout.height;
+    state.days[k].gridSpan = 'half';
     if (layout.dayFontSize) {
       state.days[k].style.dayFontSize   = layout.dayFontSize;
       state.days[k].style.timeFontSize  = layout.timeFontSize;
@@ -145,6 +146,7 @@ function mkDay(i) {
     hour: 7, minute: 0, period: 'PM',
     position: { x: DEFAULT_POSITIONS[i][0], y: DEFAULT_POSITIONS[i][1] },
     style: { ...DEFAULT_STYLE },
+    gridSpan: 'half',
   };
 }
 
@@ -156,6 +158,7 @@ const state = {
   mainTimezone: 'America/New_York',
   additionalTimezones: [],
   selectedDay: 'monday',
+  gridMode: true,
   days: Object.fromEntries(DAY_KEYS.map((k,i) => [k, mkDay(i)])),
 };
 
@@ -220,6 +223,7 @@ function renderAllBoxes() {
       canvas.appendChild(box);
     }
   });
+  if (state.gridMode) applyGridLayout();
   initDragging();
   highlightSelected();
 }
@@ -229,24 +233,36 @@ function renderBox(dayKey) {
   let box = canvas.querySelector(`.day-box[data-day="${dayKey}"]`);
   const day = state.days[dayKey];
 
-  if (!day.enabled) { if (box) box.remove(); return; }
+  if (!day.enabled) {
+    if (box) box.remove();
+    if (state.gridMode) applyGridLayout();
+    highlightSelected();
+    return;
+  }
 
   const isNew = !box;
   if (isNew) {
     box = buildBox(dayKey);
     canvas.appendChild(box);
-    interact(box).draggable(dragConfig());
-    interact(box).resizable(resizeConfig());
+    if (!state.gridMode) {
+      interact(box).draggable(dragConfig());
+      interact(box).resizable(resizeConfig());
+    }
   } else {
     applyBoxStyles(box, dayKey);
     fillBoxContent(box, dayKey);
   }
+  // A content change can shift this box's own natural height, which in grid
+  // mode cascades into every row below it — cheap enough at 7 boxes to just
+  // recompute the whole layout rather than track what changed.
+  if (state.gridMode) applyGridLayout();
   highlightSelected();
 }
 
 function buildBox(dayKey) {
   const box = document.createElement('div');
   box.className = 'day-box';
+  box.classList.toggle('grid-mode', state.gridMode);
   box.dataset.day = dayKey;
   applyBoxStyles(box, dayKey);
   fillBoxContent(box, dayKey);
@@ -285,7 +301,7 @@ function fillBoxContent(box, dayKey) {
     }).join('');
   }
 
-  const resizeHandle = `<div class="resize-handle" title="Drag to resize"></div>`;
+  const resizeHandle = state.gridMode ? '' : `<div class="resize-handle" title="Drag to resize"></div>`;
 
   if (day.noStream) {
     box.innerHTML = `<div class="box-inner">
@@ -356,6 +372,88 @@ function measureNaturalBoxSize(dayKey) {
     width:  Math.min(maxUsable, buffer((naturalRect.width  / canvasRect.width)  * 100)),
     height: Math.min(maxUsable, buffer((naturalRect.height / canvasRect.height) * 100)),
   };
+}
+
+// ── Grid Layout ────────────────────────────────────────────────────────────
+// Mobile-friendly alternative to freeform drag/resize (see state.gridMode).
+// Enabled days flow into rows in DAY_KEYS order: a 'full' day takes its own
+// row; consecutive 'half' days pair up two-to-a-row. Row height always
+// auto-fits whichever box in that row needs the most room, measured with
+// the box pinned to its real target width — unlike measureNaturalBoxSize's
+// width:'auto' trick (needed there because the target width is unknown),
+// here the width is already decided by the row, so wrapped content (e.g.
+// .box-additional-times) measures correctly with no extra handling.
+const GRID_GUTTER = 2;
+const GRID_ROW_GAP = 2;
+
+function computeGridLayout() {
+  const canvas = document.getElementById('schedule-canvas');
+  const canvasRect = canvas.getBoundingClientRect();
+  const usableWidth = 100 - 2 * CANVAS_MARGIN;
+  const halfWidth = (usableWidth - GRID_GUTTER) / 2;
+
+  const enabledDays = DAY_KEYS.filter(k => state.days[k].enabled);
+
+  // Group into rows. A leftover unpaired 'half' at a boundary gets its own
+  // row, occupying the left slot with the right slot left empty.
+  const rows = [];
+  let pendingHalf = null;
+  enabledDays.forEach(k => {
+    const span = state.days[k].gridSpan || 'full';
+    if (span === 'half') {
+      if (pendingHalf) { rows.push([pendingHalf, k]); pendingHalf = null; }
+      else pendingHalf = k;
+    } else {
+      if (pendingHalf) { rows.push([pendingHalf]); pendingHalf = null; }
+      rows.push([k]);
+    }
+  });
+  if (pendingHalf) rows.push([pendingHalf]);
+
+  const layout = {};
+  let y = CANVAS_MARGIN;
+  rows.forEach(row => {
+    const isFullRow = row.length === 1 && (state.days[row[0]].gridSpan || 'full') !== 'half';
+    const cellWidthPct = isFullRow ? usableWidth : halfWidth;
+    const cellWidthPx = (cellWidthPct / 100) * canvasRect.width;
+
+    let rowHeightPct = 0;
+    row.forEach(k => {
+      const box = canvas.querySelector(`.day-box[data-day="${k}"]`);
+      if (!box) return;
+      const prevW = box.style.width, prevH = box.style.height;
+      box.style.width = `${cellWidthPx}px`;
+      box.style.height = 'auto';
+      const naturalH = box.getBoundingClientRect().height;
+      box.style.width = prevW;
+      box.style.height = prevH;
+      rowHeightPct = Math.max(rowHeightPct, (naturalH / canvasRect.height) * 100);
+    });
+    // Same hybrid buffer as measureNaturalBoxSize — comfortable padding
+    // instead of a razor-tight fit against the measured content.
+    rowHeightPct = rowHeightPct * 1.1 + 2;
+
+    let x = CANVAS_MARGIN;
+    row.forEach(k => {
+      layout[k] = { x, y, width: cellWidthPct, height: rowHeightPct };
+      x += cellWidthPct + GRID_GUTTER;
+    });
+    y += rowHeightPct + GRID_ROW_GAP;
+  });
+
+  return layout;
+}
+
+function applyGridLayout() {
+  const layout = computeGridLayout();
+  Object.entries(layout).forEach(([k, pos]) => {
+    const box = document.querySelector(`.day-box[data-day="${k}"]`);
+    if (!box) return;
+    box.style.left   = `${pos.x}%`;
+    box.style.top    = `${pos.y}%`;
+    box.style.width  = `${pos.width}%`;
+    box.style.height = `${pos.height}%`;
+  });
 }
 
 function highlightSelected() {
@@ -544,6 +642,7 @@ function resizeConfig() {
 }
 
 function initDragging() {
+  if (state.gridMode) return;
   document.querySelectorAll('.day-box').forEach(el => {
     interact(el).draggable(dragConfig());
     interact(el).resizable(resizeConfig());
@@ -626,6 +725,18 @@ function loadDayControls(dayKey) {
   set('box-tz-size',       s.tzFontSize);
   set('box-width',         s.width);
   set('box-height',        s.height);
+
+  const span = day.gridSpan || 'full';
+  document.getElementById('span-full-btn').classList.toggle('active', span === 'full');
+  document.getElementById('span-half-btn').classList.toggle('active', span === 'half');
+}
+
+// Shows the grid Full/Half span control (and hides the freeform width/height
+// inputs) when grid mode is on, and vice versa — the two are mutually
+// exclusive ways of sizing a box.
+function updateGridModeUI() {
+  document.getElementById('grid-span-section').style.display    = state.gridMode ? '' : 'none';
+  document.getElementById('freeform-dims-section').style.display = state.gridMode ? 'none' : '';
 }
 
 function set(id, val)    { const el = document.getElementById(id); if (el) el.value = val; }
@@ -709,6 +820,15 @@ function bindDayControls() {
     set('box-width',  day.style.width);
     set('box-height', day.style.height);
     renderBox(state.selectedDay); saveToStorage();
+  });
+
+  // Grid span (Full/Half width)
+  document.querySelectorAll('.span-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.days[state.selectedDay].gridSpan = btn.dataset.span;
+      document.querySelectorAll('.span-btn').forEach(b => b.classList.toggle('active', b === btn));
+      renderAllBoxes(); saveToStorage();
+    });
   });
 
   // Apply to all
@@ -892,6 +1012,12 @@ function bindBackgroundControls() {
 
   document.getElementById('canvas-size').addEventListener('change', e => {
     applyCanvasPreset(e.target.value); saveToStorage();
+  });
+
+  document.getElementById('grid-mode-toggle').addEventListener('change', e => {
+    state.gridMode = e.target.checked;
+    updateGridModeUI();
+    renderAllBoxes(); saveToStorage();
   });
 
   document.getElementById('reset-positions-btn').addEventListener('click', () => {
@@ -1209,6 +1335,7 @@ function saveToStorage() {
       discordWebhook: state.discordWebhook,
       mainTimezone: state.mainTimezone,
       additionalTimezones: state.additionalTimezones,
+      gridMode: state.gridMode,
       days: state.days,
     };
     localStorage.setItem('ss_config', JSON.stringify(data));
@@ -1231,6 +1358,7 @@ function loadFromStorage() {
       if (d.discordWebhook)       state.discordWebhook       = d.discordWebhook;
       if (d.mainTimezone)         state.mainTimezone         = d.mainTimezone;
       if (d.additionalTimezones)  state.additionalTimezones  = d.additionalTimezones;
+      if (d.gridMode !== undefined) state.gridMode           = d.gridMode;
       if (d.days) DAY_KEYS.forEach((k, i) => {
         if (d.days[k]) {
           state.days[k] = { ...mkDay(i), ...d.days[k] };
@@ -1280,6 +1408,7 @@ function saveConfigFile() {
     exportFilename: state.exportFilename,
     mainTimezone: state.mainTimezone,
     additionalTimezones: state.additionalTimezones,
+    gridMode: state.gridMode,
     days: state.days,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1299,6 +1428,7 @@ function loadConfigFile(file) {
       if (d.exportFilename)      state.exportFilename      = d.exportFilename;
       if (d.mainTimezone)        state.mainTimezone        = d.mainTimezone;
       if (d.additionalTimezones) state.additionalTimezones = d.additionalTimezones;
+      if (d.gridMode !== undefined) state.gridMode         = d.gridMode;
       if (d.days) DAY_KEYS.forEach((k, i) => {
         if (d.days[k]) {
           state.days[k] = { ...mkDay(i), ...d.days[k] };
@@ -1320,6 +1450,8 @@ function syncAllUI() {
   set('bg-brightness',    bg.brightness);      setVal('bg-brightness-val',    `${bg.brightness}%`);
   set('bg-scale',         bg.scale ?? 100);    setVal('bg-scale-val',         `${bg.scale ?? 100}%`);
   set('canvas-size',      state.canvasPreset);
+  document.getElementById('grid-mode-toggle').checked = state.gridMode;
+  updateGridModeUI();
   set('export-filename',  state.exportFilename);
   set('discord-webhook',  state.discordWebhook);
   applyCanvasPreset(state.canvasPreset);
