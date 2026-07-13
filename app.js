@@ -774,47 +774,105 @@ async function exportImage() {
   await document.fonts.ready;
   await new Promise(r => setTimeout(r, 100)); // allow reflow
 
-  const canvas  = document.getElementById('schedule-canvas');
-  const format  = document.getElementById('export-format').value;
-  const quality = parseFloat(document.getElementById('export-quality').value);
-  const scale   = parseFloat(document.getElementById('export-scale').value);
-  const preset  = CANVAS_PRESETS[state.canvasPreset];
-  const rect    = canvas.getBoundingClientRect();
+  const canvas    = document.getElementById('schedule-canvas');
+  const bgLayer   = document.getElementById('bg-layer');
+  const bgOverlay = document.getElementById('bg-overlay');
+  const format    = document.getElementById('export-format').value;
+  const quality   = parseFloat(document.getElementById('export-quality').value);
+  const scale     = parseFloat(document.getElementById('export-scale').value);
+  const preset    = CANVAS_PRESETS[state.canvasPreset];
+  const rect      = canvas.getBoundingClientRect();
   const exportScale = scale * (preset.w / rect.width);
+
+  // When a background image is present, hide it from html2canvas and composite
+  // it manually at native resolution — this prevents html2canvas from blurring
+  // the image by scaling it up from CSS pixel dimensions.
+  const hasBg         = !!state.background.image;
+  const savedBgImg    = bgLayer.style.backgroundImage;
+  const savedBgSize   = bgLayer.style.backgroundSize;
+  const savedBgPos    = bgLayer.style.backgroundPosition;
+  const savedBgFilter = bgLayer.style.filter;
+  const savedOverlay  = bgOverlay.style.background;
+  const savedCanvasBg = canvas.style.background;
+
+  if (hasBg) {
+    bgLayer.style.backgroundImage = 'none';
+    bgOverlay.style.background    = 'transparent';
+    canvas.style.background       = 'transparent';
+  }
 
   try {
     const rendered = await html2canvas(canvas, {
       scale: exportScale, useCORS: true, allowTaint: true,
-      backgroundColor: '#1a1a2e', logging: false,
+      backgroundColor: hasBg ? null : '#1a1a2e', logging: false,
     });
+
+    let exportCanvas = rendered;
+
+    if (hasBg) {
+      // Build composite: base colour → background image → colour overlay → day boxes
+      const comp = document.createElement('canvas');
+      comp.width  = rendered.width;
+      comp.height = rendered.height;
+      const ctx = comp.getContext('2d');
+
+      ctx.fillStyle = '#1a1a2e';
+      ctx.fillRect(0, 0, comp.width, comp.height);
+
+      await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => {
+          // Match CSS background-size: ${scale}% (width-based, auto height)
+          const drawW = comp.width * (state.background.scale / 100);
+          const drawH = drawW * (img.naturalHeight / img.naturalWidth);
+          // Match CSS background-position percentage semantics
+          const drawX = (comp.width  - drawW) * (state.background.posX / 100);
+          const drawY = (comp.height - drawH) * (state.background.posY / 100);
+
+          ctx.filter = `brightness(${state.background.brightness}%)`;
+          ctx.drawImage(img, drawX, drawY, drawW, drawH);
+          ctx.filter = 'none';
+
+          // Colour overlay
+          const { r, g, b } = hex2rgb(state.background.overlayColor);
+          ctx.fillStyle = `rgba(${r},${g},${b},${state.background.overlayOpacity / 100})`;
+          ctx.fillRect(0, 0, comp.width, comp.height);
+
+          resolve();
+        };
+        img.onerror = reject;
+        img.src = state.background.image;
+      });
+
+      // Day boxes on top (html2canvas output has transparent background)
+      ctx.drawImage(rendered, 0, 0);
+      exportCanvas = comp;
+    }
+
     const mime  = format === 'jpeg' ? 'image/jpeg' : 'image/png';
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
                   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
     if (isIOS) {
-      // iOS Safari ignores <a download> and saves JPEG in an unrecognised format.
-      // Instead: render as PNG and show an in-page overlay — user long-presses
-      // the image and taps "Save to Photos".
-      const dataUrl  = rendered.toDataURL('image/png');
-      const overlay  = document.createElement('div');
-      overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;' +
+      const dataUrl = exportCanvas.toDataURL('image/png');
+      const el = document.createElement('div');
+      el.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;' +
         'display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:20px;gap:14px;';
       const msg = document.createElement('p');
       msg.textContent = 'Long-press the image → Save to Photos';
       msg.style.cssText = 'color:#eee;font-family:sans-serif;font-size:15px;text-align:center;flex-shrink:0;';
-      const img = document.createElement('img');
-      img.src = dataUrl;
-      img.style.cssText = 'max-width:100%;height:auto;border-radius:6px;';
+      const imgEl = document.createElement('img');
+      imgEl.src = dataUrl;
+      imgEl.style.cssText = 'max-width:100%;height:auto;border-radius:6px;';
       const closeBtn = document.createElement('button');
       closeBtn.textContent = '✕  Close';
       closeBtn.style.cssText = 'padding:10px 28px;background:#9146ff;color:#fff;border:none;' +
         'border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;flex-shrink:0;';
-      closeBtn.addEventListener('click', () => document.body.removeChild(overlay));
-      overlay.append(msg, img, closeBtn);
-      document.body.appendChild(overlay);
+      closeBtn.addEventListener('click', () => document.body.removeChild(el));
+      el.append(msg, imgEl, closeBtn);
+      document.body.appendChild(el);
     } else {
-      // Desktop & Android: blob URL is more reliable than a large data-URL string.
-      rendered.toBlob(blob => {
+      exportCanvas.toBlob(blob => {
         const url = URL.createObjectURL(blob);
         const a   = document.createElement('a');
         a.href     = url;
@@ -828,6 +886,12 @@ async function exportImage() {
   } catch (err) {
     alert('Export failed: ' + err.message);
   } finally {
+    bgLayer.style.backgroundImage    = savedBgImg;
+    bgLayer.style.backgroundSize     = savedBgSize;
+    bgLayer.style.backgroundPosition = savedBgPos;
+    bgLayer.style.filter             = savedBgFilter;
+    bgOverlay.style.background       = savedOverlay;
+    canvas.style.background          = savedCanvasBg;
     sidebar.style.display   = '';
     hint.style.display      = '';
     mobileBtn.style.display = '';

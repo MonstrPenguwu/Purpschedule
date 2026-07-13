@@ -73,6 +73,12 @@ A single global `state` object holds everything:
 ### Export
 - `exportImage()` uses **html2canvas** with a computed `exportScale` that maps the CSS canvas size to the target preset resolution (e.g. 1920×1080 at 2×).
 - Sidebar, hint, and mobile toggle button are hidden before capture and restored in `finally`.
+- **Background image sharpness** — html2canvas blurs CSS background images by capturing them at CSS pixel size then scaling up. Fix: when a background image is present, a two-pass composite is used:
+  1. `#bg-layer` backgroundImage is set to `none` and `#schedule-canvas` background made transparent so html2canvas captures only the day boxes (transparent background, `backgroundColor: null`).
+  2. A new canvas is built manually: base `#1a1a2e` fill → `drawImage()` of the source image at native resolution using the same `background-size`/`background-position` maths as CSS → colour overlay → html2canvas output drawn on top.
+  - Position formula matches CSS percentage semantics: `drawX = (canvasW - drawW) * (posX / 100)`.
+  - Brightness applied via `ctx.filter = 'brightness(n%)'` before `drawImage`, reset after.
+  - All saved inline styles (`backgroundImage`, `backgroundSize`, `backgroundPosition`, `filter`, overlay, canvas background) are restored in `finally`.
 - **iOS**: `<a download>` is not supported by Safari. Instead the image is rendered as PNG (JPEG causes viewer issues in iOS Photos) and shown in a full-screen in-page overlay; user long-presses to "Save to Photos".
 - **Android / Desktop**: uses `canvas.toBlob()` + `URL.createObjectURL()` (more reliable than large data URLs).
 - iOS detection: `/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)` — the second condition catches iPadOS.
