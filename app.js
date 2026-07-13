@@ -16,6 +16,13 @@ const CANVAS_PRESETS = {
   '9:16':     { w:1080, h:1920, ratio:'9/16' },
 };
 
+// Minimum distance (% of canvas) a box must keep from every canvas edge —
+// social platforms overlay their own UI (captions, buttons, safe-zone
+// chrome) right at the edges, so a box that stretches edge-to-edge is likely
+// to sit under someone else's clutter. Drag and resize both clamp against
+// this the same way they already clamp against the canvas bounds.
+const CANVAS_MARGIN = 3;
+
 const TIMEZONES = [
   { group:'North America', zones:[
     { label:'Eastern Time (ET)',   value:'America/New_York' },
@@ -105,7 +112,7 @@ const LAYOUTS = {
   // means the height needs to be generous enough that typical content (a
   // title, one extra timezone) actually fits instead of getting clipped.
   portrait:  {
-    positions: [[5,1],[5,15.15],[5,29.3],[5,43.45],[5,57.6],[5,71.75],[5,85.9]], width: 90, height: 13,
+    positions: [[5,3],[5,16.5],[5,30],[5,43.5],[5,57],[5,70.5],[5,84]], width: 90, height: 13,
     dayFontSize: 9, timeFontSize: 15, titleFontSize: 9, tzFontSize: 8,
   },
 };
@@ -300,11 +307,11 @@ function fillBoxContent(box, dayKey) {
 // Measures how big this box's own content actually needs to be. Box
 // width/height are normally fixed (see applyBoxStyles), so this briefly
 // switches them to 'auto' to read the box's natural shrink-to-fit size, then
-// restores the fixed values. Includes a ~15% buffer so "the minimum" isn't a
-// razor-tight fit with zero breathing room. Used both to floor the resize
-// handle/number inputs (so a box can never be shrunk smaller than its own
-// text needs, which used to clip it down to unreadable) and by "Fit to
-// Content" to size a box directly.
+// restores the fixed values. Includes a 30% buffer so "the minimum" is
+// comfortable padding around the content, not a razor-tight fit against it.
+// Used both to floor the resize handle/number inputs (so a box can never be
+// shrunk smaller than its own text needs, which used to clip it down to
+// unreadable) and by "Fit to Content" to size a box directly.
 function measureNaturalBoxSize(dayKey) {
   const canvas = document.getElementById('schedule-canvas');
   const box = canvas.querySelector(`.day-box[data-day="${dayKey}"]`);
@@ -321,10 +328,11 @@ function measureNaturalBoxSize(dayKey) {
   box.style.width  = prevWidth;
   box.style.height = prevHeight;
 
-  const BUFFER = 1.15;
+  const BUFFER = 1.3;
+  const maxUsable = 100 - 2 * CANVAS_MARGIN;
   return {
-    width:  Math.min(100, (naturalRect.width  / canvasRect.width)  * 100 * BUFFER),
-    height: Math.min(100, (naturalRect.height / canvasRect.height) * 100 * BUFFER),
+    width:  Math.min(maxUsable, (naturalRect.width  / canvasRect.width)  * 100 * BUFFER),
+    height: Math.min(maxUsable, (naturalRect.height / canvasRect.height) * 100 * BUFFER),
   };
 }
 
@@ -408,8 +416,8 @@ function dragConfig() {
         const actualH = (elRect.height / rect.height) * 100;
         const dxP = (ev.dx / rect.width)  * 100;
         const dyP = (ev.dy / rect.height) * 100;
-        day.position.x = Math.max(0, Math.min(day.position.x + dxP, 100 - actualW));
-        day.position.y = Math.max(0, Math.min(day.position.y + dyP, 100 - actualH));
+        day.position.x = Math.max(CANVAS_MARGIN, Math.min(day.position.x + dxP, 100 - CANVAS_MARGIN - actualW));
+        day.position.y = Math.max(CANVAS_MARGIN, Math.min(day.position.y + dyP, 100 - CANVAS_MARGIN - actualH));
         ev.target.style.left = `${day.position.x}%`;
         ev.target.style.top  = `${day.position.y}%`;
       },
@@ -421,8 +429,8 @@ function dragConfig() {
         const actualW = (elRect.width  / canvasRect.width)  * 100;
         const actualH = (elRect.height / canvasRect.height) * 100;
         const [snapX, snapY] = snapPosition(dayKey, day.position.x, day.position.y);
-        day.position.x = Math.max(0, Math.min(snapX, 100 - actualW));
-        day.position.y = Math.max(0, Math.min(snapY, 100 - actualH));
+        day.position.x = Math.max(CANVAS_MARGIN, Math.min(snapX, 100 - CANVAS_MARGIN - actualW));
+        day.position.y = Math.max(CANVAS_MARGIN, Math.min(snapY, 100 - CANVAS_MARGIN - actualH));
         ev.target.style.left = `${day.position.x}%`;
         ev.target.style.top  = `${day.position.y}%`;
         saveToStorage();
@@ -450,13 +458,13 @@ function resizeConfig() {
         const s = day.style;
         const dwP = (ev.deltaRect.width  / rect.width)  * 100;
         const dhP = (ev.deltaRect.height / rect.height) * 100;
-        // Bounded the same way dragging is: can't grow past the canvas edge
-        // from the box's current position, and never below what the box's
-        // own content needs (minSize) — previously the floor was a flat 5%,
-        // which let a box shrink small enough to clip its own text down to
-        // a single letter.
-        s.width  = Math.max(minSize.width,  Math.min(s.width  + dwP, 100 - day.position.x));
-        s.height = Math.max(minSize.height, Math.min(s.height + dhP, 100 - day.position.y));
+        // Bounded the same way dragging is: can't grow past CANVAS_MARGIN from
+        // the canvas edge (from the box's current position), and never below
+        // what the box's own content needs (minSize) — previously the floor
+        // was a flat 5%, which let a box shrink small enough to clip its own
+        // text down to a single letter.
+        s.width  = Math.max(minSize.width,  Math.min(s.width  + dwP, 100 - CANVAS_MARGIN - day.position.x));
+        s.height = Math.max(minSize.height, Math.min(s.height + dhP, 100 - CANVAS_MARGIN - day.position.y));
         ev.target.style.width  = `${s.width}%`;
         ev.target.style.height = `${s.height}%`;
         if (dayKey === state.selectedDay) {
