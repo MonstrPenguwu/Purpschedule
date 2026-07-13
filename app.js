@@ -77,6 +77,46 @@ const DEFAULT_STYLE = {
 
 const DEFAULT_POSITIONS = [[4,37],[23,37],[42,37],[61,37],[80,37],[29,67],[57,67]];
 
+// Per-orientation layouts. The landscape row arrangement only fits because the
+// canvas is wide on screen; the portrait canvas is height-constrained (see
+// applyCanvasPreset) and renders far narrower, so a horizontal row of boxes
+// with fixed-px fonts overflows its slot and overlaps neighbours. Portrait
+// instead stacks boxes in a single column — width overflow becomes harmless
+// because there's no horizontal neighbour left to collide with.
+const LAYOUTS = {
+  landscape: { positions: [[4,37],[23,37],[42,37],[61,37],[80,37],[29,67],[57,67]], width: 14, height: 26 },
+  square:    { positions: [[4,37],[23,37],[42,37],[61,37],[80,37],[29,67],[57,67]], width: 14, height: 26 },
+  // 7 rows in a fixed 100% budget leaves little slack, so portrait also uses
+  // smaller fonts (not just spacing) — a title or an extra timezone line still
+  // needs to fit within the gap before the next box without overlapping it.
+  portrait:  {
+    positions: [[5,2],[5,15.5],[5,29],[5,42.5],[5,56],[5,69.5],[5,83]], width: 90, height: 9,
+    dayFontSize: 9, timeFontSize: 15, titleFontSize: 9, tzFontSize: 8,
+  },
+};
+
+function presetCategory(presetKey) {
+  const { w, h } = CANVAS_PRESETS[presetKey];
+  if (h > w) return 'portrait';
+  if (h === w) return 'square';
+  return 'landscape';
+}
+
+function applyLayoutForCategory(category) {
+  const layout = LAYOUTS[category];
+  DAY_KEYS.forEach((k, i) => {
+    state.days[k].position = { x: layout.positions[i][0], y: layout.positions[i][1] };
+    state.days[k].style.width  = layout.width;
+    state.days[k].style.height = layout.height;
+    if (layout.dayFontSize) {
+      state.days[k].style.dayFontSize   = layout.dayFontSize;
+      state.days[k].style.timeFontSize  = layout.timeFontSize;
+      state.days[k].style.titleFontSize = layout.titleFontSize;
+      state.days[k].style.tzFontSize    = layout.tzFontSize;
+    }
+  });
+}
+
 function mkDay(i) {
   return {
     enabled: true, noStream: false, title: '',
@@ -312,11 +352,17 @@ function dragConfig() {
         const rect = canvas.getBoundingClientRect();
         const dayKey = ev.target.dataset.day;
         const day = state.days[dayKey];
-        const s = day.style;
+        // Boxes are width:auto/height:auto and grow to fit content, so the
+        // actual rendered size can exceed the configured style.width/height —
+        // clamp against the real size, not the nominal one, or the box can be
+        // dragged past the canvas edge (or into a neighbour) before it snaps back.
+        const elRect = ev.target.getBoundingClientRect();
+        const actualW = (elRect.width  / rect.width)  * 100;
+        const actualH = (elRect.height / rect.height) * 100;
         const dxP = (ev.dx / rect.width)  * 100;
         const dyP = (ev.dy / rect.height) * 100;
-        day.position.x = Math.max(0, Math.min(day.position.x + dxP, 100 - parseFloat(s.width)));
-        day.position.y = Math.max(0, Math.min(day.position.y + dyP, 100 - parseFloat(s.height)));
+        day.position.x = Math.max(0, Math.min(day.position.x + dxP, 100 - actualW));
+        day.position.y = Math.max(0, Math.min(day.position.y + dyP, 100 - actualH));
         ev.target.style.left = `${day.position.x}%`;
         ev.target.style.top  = `${day.position.y}%`;
       },
@@ -358,6 +404,8 @@ function applyBackground() {
 // ── Canvas Resize ──────────────────────────────────────────────────────────
 
 function applyCanvasPreset(preset) {
+  const prevCategory = presetCategory(state.canvasPreset);
+  const nextCategory = presetCategory(preset);
   state.canvasPreset = preset;
   const { w: pw, h: ph, ratio } = CANVAS_PRESETS[preset];
   const wrapper = document.getElementById('schedule-wrapper');
@@ -374,6 +422,14 @@ function applyCanvasPreset(preset) {
     wrapper.style.height   = 'auto';
     wrapper.style.maxWidth = '';
     wrapper.style.maxHeight = 'calc(100vh - 80px)';
+  }
+
+  // Orientation actually changed (not just switching resolution within the same
+  // orientation) — the previous layout's positions/sizes likely don't fit the
+  // new shape, so swap in the tuned defaults for the new orientation.
+  if (nextCategory !== prevCategory) {
+    applyLayoutForCategory(nextCategory);
+    renderAllBoxes();
   }
 }
 
@@ -657,7 +713,7 @@ function bindBackgroundControls() {
   });
 
   document.getElementById('reset-positions-btn').addEventListener('click', () => {
-    DAY_KEYS.forEach((k, i) => { state.days[k].position = { x: DEFAULT_POSITIONS[i][0], y: DEFAULT_POSITIONS[i][1] }; });
+    applyLayoutForCategory(presetCategory(state.canvasPreset));
     renderAllBoxes(); saveToStorage();
   });
 }
@@ -999,6 +1055,17 @@ function loadFromStorage() {
           state.days[k].style = { ...DEFAULT_STYLE, ...d.days[k].style };
         }
       });
+
+      // One-time migration: configs saved before portrait got its own layout
+      // have the landscape row positions applied to a 9:16 canvas, which
+      // overlaps badly (see LAYOUTS comment). If every day is still sitting
+      // at the untouched landscape default, swap in the portrait layout.
+      if (presetCategory(state.canvasPreset) === 'portrait') {
+        const stillLandscapeDefault = DAY_KEYS.every((k, i) =>
+          state.days[k].position.x === DEFAULT_POSITIONS[i][0] &&
+          state.days[k].position.y === DEFAULT_POSITIONS[i][1]);
+        if (stillLandscapeDefault) applyLayoutForCategory('portrait');
+      }
     }
     const bg = localStorage.getItem('ss_bg');
     if (bg) state.background.image = bg;

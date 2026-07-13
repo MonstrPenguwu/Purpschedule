@@ -65,7 +65,13 @@ A single global `state` object holds everything:
 ### Drag & Drop
 - Uses **interact.js**. Config is returned by `dragConfig()` and applied in `initDragging()`.
 - During `drag end`, `snapPosition()` checks all other enabled boxes for alignment snapping (threshold: 5% units).
-- Positions are clamped to `[0, 100 - boxSize]` to keep boxes within canvas bounds.
+- Positions are clamped to `[0, 100 - boxSize]` to keep boxes within canvas bounds — both `move` and `end` clamp against the box's **actual rendered size** (`getBoundingClientRect()`), not `style.width`/`style.height`, because boxes are `width:auto`/`height:auto` and grow to fit content (see Orientation Layouts below). Clamping against the nominal size let boxes drag past where they visually fit.
+
+### Orientation Layouts (`LAYOUTS`, `presetCategory()`, `applyLayoutForCategory()`)
+- Box `width`/`height` are percentages of the canvas, but fonts are fixed px — so the same percentage means very different actual room depending on the canvas's on-screen CSS pixel size. `applyCanvasPreset()` sizes portrait canvases by **height** (`calc(100vh - 80px)`) rather than width, so a portrait canvas renders far narrower on screen than landscape/square do. The landscape row layout's 14%-wide boxes then need to grow (via `width:auto`) well past their slot to fit "7:00 PM" etc., and overlap their neighbours — this was the original bug (box sizing/snapping "awkward" specifically in vertical view, corrupting exports and Discord posts).
+- Fix: `presetCategory(presetKey)` classifies a preset as `landscape` / `square` / `portrait` (by comparing `w`/`h`). `LAYOUTS[category]` holds a tuned `positions` array (7 `[x,y]` pairs) plus `width`/`height` (and, for portrait, smaller `dayFontSize`/`timeFontSize`/`titleFontSize`/`tzFontSize`) for that orientation. Portrait stacks boxes in a **single column** — width overflow becomes harmless since there's no horizontal neighbour to collide with — sized with enough vertical gap to tolerate a title + one extra timezone line without the next box overlapping (verified on a normal desktop viewport; extremely short browser windows combined with a title *and* extra timezone on every single day can still be tight — an inherent budget problem with 7 rows in 100% height, not a bug to chase further).
+- `applyLayoutForCategory(category)` overwrites every day's `position` and `style.width`/`height` (and portrait's font sizes) — called from `applyCanvasPreset()` only when the category actually **changes** (landscape↔square↔portrait), so switching resolution within the same orientation (e.g. `16:9` → `16:9-720`) never clobbers a user's custom positions. The "Reset Positions" button also goes through this (`applyLayoutForCategory(presetCategory(state.canvasPreset))`) instead of the old hardcoded landscape-only reset.
+- `loadFromStorage()` has a one-time migration: if a saved config's preset is portrait and every day's position still exactly matches the old landscape default (`DEFAULT_POSITIONS`), it's almost certainly a config saved before this fix — silently re-lay it out as portrait rather than leaving it broken.
 
 ### Timezone Conversion
 - `tzOffsetMinutes(tz)` — computes UTC offset via `toLocaleString` comparison (cross-browser safe).
@@ -140,5 +146,5 @@ Inter, Oswald, Bebas Neue, Roboto, Montserrat, Rajdhani, Exo 2, Orbitron, Anton,
 - All user-facing strings rendered into HTML go through `esc()` (XSS sanitisation).
 - The `pickImageFile` helper creates a hidden `<input type="file">`, clicks it programmatically, and cleans up after use — avoids persistent hidden inputs in the DOM.
 - `loadImageFile` uses `FileReader.readAsDataURL` to store images as base64.
-- Adding a new day: update `DAY_KEYS`, `DAY_LABELS`, `DAY_SHORT`, and `DEFAULT_POSITIONS` — all rendering, storage, and UI toggle loops are driven by `DAY_KEYS` and require no other changes.
+- Adding a new day: update `DAY_KEYS`, `DAY_LABELS`, `DAY_SHORT`, `DEFAULT_POSITIONS`, and every `positions` array in `LAYOUTS` (one `[x,y]` per day, same order as `DAY_KEYS`) — all rendering, storage, and UI toggle loops are driven by `DAY_KEYS` and require no other changes.
 - Adding a new `state.background` property: initialise it in the `state` declaration; `Object.assign` in `loadFromStorage`/`loadConfigFile` will preserve the default for old configs automatically.
