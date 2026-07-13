@@ -712,21 +712,23 @@ function populateDayVisToggles() {
 // ── Export ─────────────────────────────────────────────────────────────────
 
 async function exportImage() {
-  const btn = document.getElementById('export-btn');
+  const btn       = document.getElementById('export-btn');
+  const sidebar   = document.getElementById('sidebar');
+  const hint      = document.getElementById('canvas-hint');
+  const mobileBtn = document.getElementById('mobile-menu-btn');
+  const mobOver   = document.getElementById('mobile-overlay');
+
   btn.textContent = '⏳ Rendering…'; btn.disabled = true;
-
-  const sidebar = document.getElementById('sidebar');
-  const hint    = document.getElementById('canvas-hint');
-  sidebar.style.display = 'none';
-  hint.style.display    = 'none';
-
-  // Remove selection highlight for clean export
+  sidebar.style.display   = 'none';
+  hint.style.display      = 'none';
+  mobileBtn.style.display = 'none';
+  if (mobOver) mobOver.style.display = 'none';
   document.querySelectorAll('.day-box.selected').forEach(b => b.classList.remove('selected'));
 
   await document.fonts.ready;
   await new Promise(r => setTimeout(r, 100)); // allow reflow
 
-  const canvas = document.getElementById('schedule-canvas');
+  const canvas  = document.getElementById('schedule-canvas');
   const format  = document.getElementById('export-format').value;
   const quality = parseFloat(document.getElementById('export-quality').value);
   const scale   = parseFloat(document.getElementById('export-scale').value);
@@ -739,15 +741,51 @@ async function exportImage() {
       scale: exportScale, useCORS: true, allowTaint: true,
       backgroundColor: '#1a1a2e', logging: false,
     });
-    const mime = format === 'jpeg' ? 'image/jpeg' : 'image/png';
-    const dataUrl = rendered.toDataURL(mime, quality);
-    const a = document.createElement('a');
-    a.download = `stream-schedule.${format}`; a.href = dataUrl; a.click();
-  } catch(err) {
+    const mime  = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+                  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+    if (isIOS) {
+      // iOS Safari ignores <a download> and saves JPEG in an unrecognised format.
+      // Instead: render as PNG and show an in-page overlay — user long-presses
+      // the image and taps "Save to Photos".
+      const dataUrl  = rendered.toDataURL('image/png');
+      const overlay  = document.createElement('div');
+      overlay.style.cssText = 'position:fixed;inset:0;background:#000;z-index:9999;' +
+        'display:flex;flex-direction:column;align-items:center;overflow-y:auto;padding:20px;gap:14px;';
+      const msg = document.createElement('p');
+      msg.textContent = 'Long-press the image → Save to Photos';
+      msg.style.cssText = 'color:#eee;font-family:sans-serif;font-size:15px;text-align:center;flex-shrink:0;';
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.style.cssText = 'max-width:100%;height:auto;border-radius:6px;';
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '✕  Close';
+      closeBtn.style.cssText = 'padding:10px 28px;background:#9146ff;color:#fff;border:none;' +
+        'border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;flex-shrink:0;';
+      closeBtn.addEventListener('click', () => document.body.removeChild(overlay));
+      overlay.append(msg, img, closeBtn);
+      document.body.appendChild(overlay);
+    } else {
+      // Desktop & Android: blob URL is more reliable than a large data-URL string.
+      rendered.toBlob(blob => {
+        const url = URL.createObjectURL(blob);
+        const a   = document.createElement('a');
+        a.href     = url;
+        a.download = `stream-schedule.${format}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
+      }, mime, quality);
+    }
+  } catch (err) {
     alert('Export failed: ' + err.message);
   } finally {
-    sidebar.style.display = '';
-    hint.style.display    = '';
+    sidebar.style.display   = '';
+    hint.style.display      = '';
+    mobileBtn.style.display = '';
+    if (mobOver) mobOver.style.display = '';
     highlightSelected();
     btn.textContent = '💾 Export as Image'; btn.disabled = false;
   }
@@ -897,6 +935,23 @@ function init() {
   bindBackgroundControls();
   bindTZControls();
   bindExportControls();
+
+  // Mobile sidebar toggle
+  (function () {
+    const mbtn    = document.getElementById('mobile-menu-btn');
+    const overlay = document.getElementById('mobile-overlay');
+    const sb      = document.getElementById('sidebar');
+    function openSidebar()  { sb.classList.add('mobile-open');    overlay.classList.add('visible'); }
+    function closeSidebar() { sb.classList.remove('mobile-open'); overlay.classList.remove('visible'); }
+    mbtn.addEventListener('click', () =>
+      sb.classList.contains('mobile-open') ? closeSidebar() : openSidebar()
+    );
+    overlay.addEventListener('click', closeSidebar);
+    // Auto-open sidebar when a day box is tapped on mobile
+    document.getElementById('schedule-canvas').addEventListener('click', e => {
+      if (e.target.closest('.day-box') && window.matchMedia('(max-width:700px)').matches) openSidebar();
+    });
+  })();
 
   syncAllUI();
 }

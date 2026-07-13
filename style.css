@@ -511,16 +511,57 @@ input[type="color"] {
 }
 
 /* ════════════════════════════════════════════════════
-   Responsive — narrow sidebar on small screens
+   Mobile Responsive
    ════════════════════════════════════════════════════ */
 
-@media (max-width: 700px) {
-  :root { --sidebar-w: 240px; }
-  .sidebar-header h2 { font-size: 13px; }
+#mobile-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 199;
 }
+#mobile-overlay.visible { display: block; }
 
-@media (max-width: 520px) {
-  #app { flex-direction: column; }
-  #sidebar { width: 100%; min-width: unset; height: 50vh; overflow-y: auto; }
-  #canvas-area { height: 50vh; padding: 10px; }
+#mobile-menu-btn { display: none; }
+
+@media (max-width: 700px) {
+  #sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: -100%;
+    width: min(296px, 88vw);
+    min-width: unset;
+    z-index: 200;
+    transition: left 0.25s ease;
+  }
+  #sidebar.mobile-open { left: 0; }
+
+  #canvas-area {
+    width: 100%;
+    height: 100vh;
+    padding: 10px;
+  }
+
+  #mobile-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 198;
+    width: 40px;
+    height: 40px;
+    background: var(--bg-sidebar);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 20px;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
+  }
+
+  #canvas-hint { font-size: 10px; }
 }
