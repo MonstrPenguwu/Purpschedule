@@ -146,5 +146,5 @@ Inter, Oswald, Bebas Neue, Roboto, Montserrat, Rajdhani, Exo 2, Orbitron, Anton,
 - All user-facing strings rendered into HTML go through `esc()` (XSS sanitisation).
 - The `pickImageFile` helper creates a hidden `<input type="file">`, clicks it programmatically, and cleans up after use — avoids persistent hidden inputs in the DOM.
 - `loadImageFile` uses `FileReader.readAsDataURL` to store images as base64.
-- Adding a new day: update `DAY_KEYS`, `DAY_LABELS`, `DAY_SHORT`, `DEFAULT_POSITIONS`, and every `positions` array in `LAYOUTS` (one `[x,y]` per day, same order as `DAY_KEYS`) — all rendering, storage, and UI toggle loops are driven by `DAY_KEYS` and require no other changes.
+- Adding a new day: update `DAY_KEYS`, `DAY_SHORT`, `DEFAULT_POSITIONS`, and every `positions` array in `LAYOUTS` (one `[x,y]` per day, same order as `DAY_KEYS`) — all rendering, storage, and UI toggle loops are driven by `DAY_KEYS` and require no other changes.
 - Adding a new `state.background` property: initialise it in the `state` declaration; `Object.assign` in `loadFromStorage`/`loadConfigFile` will preserve the default for old configs automatically.

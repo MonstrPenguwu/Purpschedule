@@ -7,7 +7,6 @@
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const DAY_KEYS   = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
-const DAY_LABELS = { monday:'Monday', tuesday:'Tuesday', wednesday:'Wednesday', thursday:'Thursday', friday:'Friday', saturday:'Saturday', sunday:'Sunday' };
 const DAY_SHORT  = { monday:'MON', tuesday:'TUE', wednesday:'WED', thursday:'THU', friday:'FRI', saturday:'SAT', sunday:'SUN' };
 
 const CANVAS_PRESETS = {
@@ -266,13 +265,13 @@ function fillBoxContent(box, dayKey) {
 
   if (day.noStream) {
     box.innerHTML = `<div class="box-inner">
-      <div class="box-day-name"    style="font-size:${s.dayFontSize}px;color:${s.fontColor}">${esc(DAY_LABELS[dayKey])}</div>
+      <div class="box-day-name"    style="font-size:${s.dayFontSize}px;color:${s.fontColor}">${esc(DAY_SHORT[dayKey])}</div>
       <div class="box-no-stream-label" style="font-size:${Math.round(s.timeFontSize*0.6)}px;color:${s.fontColor};margin-top:6px">NO STREAM</div>
     </div>`;
   } else {
     const timeStr = `${day.hour}:${String(day.minute).padStart(2,'0')} ${day.period}`;
     box.innerHTML = `<div class="box-inner">
-      <div class="box-day-name" style="font-size:${s.dayFontSize}px">${esc(DAY_LABELS[dayKey])}</div>
+      <div class="box-day-name" style="font-size:${s.dayFontSize}px">${esc(DAY_SHORT[dayKey])}</div>
       <div class="box-time-main" style="font-size:${s.timeFontSize}px;color:${s.accentColor}">${esc(timeStr)}</div>
       <div class="box-tz-label"  style="font-size:${s.tzFontSize}px">${esc(tzShort)}</div>
       ${addTZHtml ? `<div class="box-additional-times" style="font-size:${Math.round(s.tzFontSize * 1.3)}px;gap:3px 8px">${addTZHtml}</div>` : ''}
