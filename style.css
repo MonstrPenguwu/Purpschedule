@@ -479,11 +479,13 @@ input[type="color"] {
 .box-time-main {
   font-weight: 700;
   line-height: 1.1;
+  white-space: nowrap;
 }
 
 .box-tz-label {
   opacity: 0.65;
   line-height: 1;
+  white-space: nowrap;
 }
 
 .box-additional-times {
@@ -493,6 +495,10 @@ input[type="color"] {
   gap: 2px;
   opacity: 0.95;
   line-height: 1.2;
+}
+
+.box-additional-times span {
+  white-space: nowrap;
 }
 
 .box-title {
