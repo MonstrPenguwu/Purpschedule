@@ -320,6 +320,21 @@ function measureNaturalBoxSize(dayKey) {
 
   const prevWidth  = box.style.width;
   const prevHeight = box.style.height;
+  const currentPxWidth = box.getBoundingClientRect().width;
+
+  // .box-additional-times (the extra-timezone list) is flex-wrap:wrap by
+  // design — but CSS shrink-to-fit's "preferred width" (what width:'auto'
+  // below resolves to) is defined as the width with *no* wrapping at all, as
+  // if every extra timezone sat on one line. With 2-3 added zones that can
+  // be 2-3x wider than the box actually needs once it's allowed to wrap,
+  // which pinned the floor near the max-size cap and made "shrink after
+  // growing" feel broken. Capping it to the box's current width first makes
+  // it wrap the same way it already does, so the measurement reflects a
+  // wrapped layout instead of one unwrapped mega-line.
+  const additionalTimes = box.querySelector('.box-additional-times');
+  const prevATMaxWidth = additionalTimes ? additionalTimes.style.maxWidth : null;
+  if (additionalTimes) additionalTimes.style.maxWidth = `${currentPxWidth}px`;
+
   box.style.width  = 'auto';
   box.style.height = 'auto';
 
@@ -327,12 +342,19 @@ function measureNaturalBoxSize(dayKey) {
 
   box.style.width  = prevWidth;
   box.style.height = prevHeight;
+  if (additionalTimes) additionalTimes.style.maxWidth = prevATMaxWidth;
 
-  const BUFFER = 1.3;
+  // Hybrid buffer (10% relative + 3 flat percentage points) instead of a
+  // pure multiplier — a flat ×1.3 gave tiny content barely-there padding
+  // (6% → 8%) while blowing up already-substantial content (72% → 94%,
+  // right against the max-size cap). The additive term matters more the
+  // smaller the content is; the relative term keeps scaling sanely as
+  // content grows, instead of ballooning with it.
+  const buffer = v => v * 1.1 + 3;
   const maxUsable = 100 - 2 * CANVAS_MARGIN;
   return {
-    width:  Math.min(maxUsable, (naturalRect.width  / canvasRect.width)  * 100 * BUFFER),
-    height: Math.min(maxUsable, (naturalRect.height / canvasRect.height) * 100 * BUFFER),
+    width:  Math.min(maxUsable, buffer((naturalRect.width  / canvasRect.width)  * 100)),
+    height: Math.min(maxUsable, buffer((naturalRect.height / canvasRect.height) * 100)),
   };
 }
 
@@ -398,6 +420,42 @@ function snapPosition(dayKey, rawX, rawY) {
   ];
 }
 
+// Resize only ever grows a box from its top-left anchor (position never
+// changes — only the right/bottom edges move, see resizeConfig), so the only
+// way it can collide with another enabled box is by growing into one that's
+// to the right (for width) or below (for height). Unlike drag — which allows
+// free overlap, snapPosition is just an alignment aid — an uncapped resize
+// growing into a neighbour let that neighbour's (later-in-DOM-order, so
+// visually on top) box physically cover this box's own resize handle,
+// making the box un-shrinkable afterwards since there was nothing left to
+// click. Only a box sharing this one's other axis (i.e. actually in the way)
+// constrains the cap; unrelated boxes elsewhere on the canvas don't.
+function maxSizeAvoidingNeighbors(dayKey) {
+  const day = state.days[dayKey];
+  const x1 = day.position.x, y1 = day.position.y;
+  let maxWidth  = 100 - CANVAS_MARGIN - x1;
+  let maxHeight = 100 - CANVAS_MARGIN - y1;
+
+  DAY_KEYS.forEach(k => {
+    if (k === dayKey) return;
+    const other = state.days[k];
+    if (!other.enabled) return;
+    const ox1 = other.position.x, oy1 = other.position.y;
+    const ox2 = ox1 + other.style.width, oy2 = oy1 + other.style.height;
+
+    // To the right and within our current vertical band — caps width.
+    if (ox1 >= x1 && y1 < oy2 && y1 + day.style.height > oy1) {
+      maxWidth = Math.min(maxWidth, ox1 - x1);
+    }
+    // Below and within our current horizontal band — caps height.
+    if (oy1 >= y1 && x1 < ox2 && x1 + day.style.width > ox1) {
+      maxHeight = Math.min(maxHeight, oy1 - y1);
+    }
+  });
+
+  return { width: maxWidth, height: maxHeight };
+}
+
 function dragConfig() {
   return {
     inertia: false,
@@ -441,14 +499,19 @@ function dragConfig() {
 
 function resizeConfig() {
   let minSize = { width: 5, height: 5 };
+  let maxSize = { width: 100, height: 100 };
   return {
     edges: { left: false, top: false, right: '.resize-handle', bottom: '.resize-handle' },
     listeners: {
       start(ev) {
-        // Measured once per gesture, not per move event — it requires a
-        // reflow (temporarily un-fixing the box's size), too expensive to
-        // repeat on every pointer move.
-        minSize = measureNaturalBoxSize(ev.target.dataset.day);
+        // Both measured once per gesture, not per move event: minSize
+        // requires a reflow (temporarily un-fixing the box's size), and
+        // maxSize is constant through the gesture anyway since resize never
+        // moves this box's own position — only *other* boxes' positions
+        // would change it, and they don't move mid-gesture.
+        const dayKey = ev.target.dataset.day;
+        minSize = measureNaturalBoxSize(dayKey);
+        maxSize = maxSizeAvoidingNeighbors(dayKey);
       },
       move(ev) {
         const canvas = document.getElementById('schedule-canvas');
@@ -459,12 +522,13 @@ function resizeConfig() {
         const dwP = (ev.deltaRect.width  / rect.width)  * 100;
         const dhP = (ev.deltaRect.height / rect.height) * 100;
         // Bounded the same way dragging is: can't grow past CANVAS_MARGIN from
-        // the canvas edge (from the box's current position), and never below
-        // what the box's own content needs (minSize) — previously the floor
-        // was a flat 5%, which let a box shrink small enough to clip its own
-        // text down to a single letter.
-        s.width  = Math.max(minSize.width,  Math.min(s.width  + dwP, 100 - CANVAS_MARGIN - day.position.x));
-        s.height = Math.max(minSize.height, Math.min(s.height + dhP, 100 - CANVAS_MARGIN - day.position.y));
+        // the canvas edge or into a neighbouring box (maxSize — see
+        // maxSizeAvoidingNeighbors), and never below what the box's own
+        // content needs (minSize) — previously the floor was a flat 5%,
+        // which let a box shrink small enough to clip its own text down to
+        // a single letter.
+        s.width  = Math.max(minSize.width,  Math.min(s.width  + dwP, maxSize.width));
+        s.height = Math.max(minSize.height, Math.min(s.height + dhP, maxSize.height));
         ev.target.style.width  = `${s.width}%`;
         ev.target.style.height = `${s.height}%`;
         if (dayKey === state.selectedDay) {
