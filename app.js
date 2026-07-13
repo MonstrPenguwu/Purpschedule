@@ -86,10 +86,12 @@ const LAYOUTS = {
   landscape: { positions: [[4,37],[23,37],[42,37],[61,37],[80,37],[29,67],[57,67]], width: 14, height: 26 },
   square:    { positions: [[4,37],[23,37],[42,37],[61,37],[80,37],[29,67],[57,67]], width: 14, height: 26 },
   // 7 rows in a fixed 100% budget leaves little slack, so portrait also uses
-  // smaller fonts (not just spacing) — a title or an extra timezone line still
-  // needs to fit within the gap before the next box without overlapping it.
+  // smaller fonts. Box height is fixed (see applyBoxStyles) so overflow clips
+  // instead of growing into the next box — that guarantees no overlap, but
+  // means the height needs to be generous enough that typical content (a
+  // title, one extra timezone) actually fits instead of getting clipped.
   portrait:  {
-    positions: [[5,2],[5,15.5],[5,29],[5,42.5],[5,56],[5,69.5],[5,83]], width: 90, height: 9,
+    positions: [[5,1],[5,15.15],[5,29.3],[5,43.45],[5,57.6],[5,71.75],[5,85.9]], width: 90, height: 13,
     dayFontSize: 9, timeFontSize: 15, titleFontSize: 9, tzFontSize: 8,
   },
 };
@@ -239,8 +241,7 @@ function applyBoxStyles(box, dayKey) {
     top:          `${day.position.y}%`,
     minWidth:     `${s.width}%`,
     width:        'auto',
-    minHeight:    `${s.height}%`,
-    height:       'auto',
+    height:       `${s.height}%`,
     background:   `rgba(${r},${g},${b},${alpha})`,
     border:       `${s.borderWidth}px solid ${s.borderColor}`,
     borderRadius: `${s.borderRadius}px`,
