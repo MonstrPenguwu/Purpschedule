@@ -484,7 +484,6 @@ function maxSizeAvoidingNeighbors(dayKey) {
 function dragConfig() {
   return {
     inertia: false,
-    ignoreFrom: '.resize-handle',
     listeners: {
       move(ev) {
         const canvas = document.getElementById('schedule-canvas');
