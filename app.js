@@ -428,7 +428,7 @@ function computeGridLayout() {
     const cellWidthPx = (cellWidthPct / 100) * canvasWidth;
 
     const box = canvas.querySelector(`.day-box[data-day="${k}"]`);
-    let rowHeightPct = parseFloat(state.days[k].style.height) || 0;
+    let rowHeightPct = 5; // fallback if DOM measurement unavailable
     if (box) {
       const prevW = box.style.width, prevH = box.style.height;
       box.style.width = `${cellWidthPx}px`;
@@ -436,10 +436,9 @@ function computeGridLayout() {
       const naturalH = box.getBoundingClientRect().height;
       box.style.width = prevW;
       box.style.height = prevH;
-      const naturalPct = canvasHeight ? (naturalH / canvasHeight) * 100 : 0;
-      rowHeightPct = Math.max(rowHeightPct, naturalPct);
+      if (naturalH > 0) rowHeightPct = (naturalH / canvasHeight) * 100;
     }
-    rowHeightPct = rowHeightPct * 1.1 + 2;
+    rowHeightPct = rowHeightPct * 1.15 + 1;
 
     const x = isHalf
       ? (align === 'right'  ? CANVAS_MARGIN + usableWidth - cellWidthPct
