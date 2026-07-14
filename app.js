@@ -408,7 +408,22 @@ function sanitizeGridOrder(order) {
 function getGridOrder() {
   return sanitizeGridOrder(state.gridOrder);
 }
-
+ 
+function groupLayoutRows(layout) {
+  const rows = [];
+  Object.entries(layout)
+    .sort((a, b) => a[1].y - b[1].y)
+    .forEach(([k, pos]) => {
+      const last = rows[rows.length - 1];
+      if (last && Math.abs(last.y - pos.y) < 1 && Math.abs(last.height - pos.height) < 1) {
+        last.keys.push(k);
+      } else {
+        rows.push({ y: pos.y, height: pos.height, keys: [k] });
+      }
+    });
+  return rows;
+}
+ 
 // Resolves which of two paired half-width days lands left vs right. `a` is
 // the one encountered first in gridOrder. Each day's own gridAlign is
 // honoured when only one of the pair wants a given side; if both want the
@@ -431,9 +446,20 @@ function resolvePairSides(a, b) {
 function computeGridLayout() {
   const canvas = document.getElementById('schedule-canvas');
   const canvasRect = canvas.getBoundingClientRect();
+  const canvasWidth = canvasRect.width || canvas.clientWidth;
+  const canvasHeight = canvasRect.height || canvas.clientHeight;
   const usableWidth = 100 - 2 * CANVAS_MARGIN;
   const halfWidth = (usableWidth - GRID_GUTTER) / 2;
-
+ 
+  if (!canvasWidth || !canvasHeight) {
+    const fallback = {};
+    getGridOrder().filter(k => state.days[k].enabled).forEach(k => {
+      const day = state.days[k];
+      fallback[k] = { x: day.position.x, y: day.position.y, width: day.style.width, height: day.style.height };
+    });
+    return fallback;
+  }
+ 
   const enabledDays = getGridOrder().filter(k => state.days[k].enabled);
 
   // Group into rows. A leftover unpaired 'half' at a boundary gets its own
@@ -457,7 +483,7 @@ function computeGridLayout() {
   rows.forEach(row => {
     const isFullRow = row.length === 1 && (state.days[row[0]].gridSpan || 'full') !== 'half';
     const cellWidthPct = isFullRow ? usableWidth : halfWidth;
-    const cellWidthPx = (cellWidthPct / 100) * canvasRect.width;
+    const cellWidthPx = (cellWidthPct / 100) * canvasWidth;
 
     let rowHeightPct = 0;
     row.forEach(k => {
@@ -469,7 +495,8 @@ function computeGridLayout() {
       const naturalH = box.getBoundingClientRect().height;
       box.style.width = prevW;
       box.style.height = prevH;
-      rowHeightPct = Math.max(rowHeightPct, (naturalH / canvasRect.height) * 100);
+      const naturalPct = canvasHeight ? (naturalH / canvasHeight) * 100 : 0;
+      rowHeightPct = Math.max(rowHeightPct, naturalPct, parseFloat(state.days[k].style.height) || 0);
     });
     // Same hybrid buffer as measureNaturalBoxSize — comfortable padding
     // instead of a razor-tight fit against the measured content.
@@ -520,23 +547,25 @@ function applyGridLayout() {
 // indicator always previews exactly what dropping now would do.
 function findGridDropTarget(dayKey, cy) {
   const layout = computeGridLayout();
-  const others = Object.keys(layout).filter(k => k !== dayKey);
-  let target = null, minDist = Infinity;
-  others.forEach(k => {
-    const pos = layout[k];
-    const d = Math.abs(cy - (pos.y + pos.height / 2));
-    if (d < minDist) { minDist = d; target = k; }
+  const rows = groupLayoutRows(layout).filter(row => !row.keys.includes(dayKey));
+  let targetRow = null, minDist = Infinity;
+  rows.forEach(row => {
+    const center = row.y + row.height / 2;
+    const d = Math.abs(cy - center);
+    if (d < minDist) { minDist = d; targetRow = row; }
   });
-  return { target, layout };
+  return { targetRow, layout };
 }
 
 function boxCenterPct(box) {
   const canvas = document.getElementById('schedule-canvas');
   const canvasRect = canvas.getBoundingClientRect();
+  const canvasWidth = canvasRect.width || canvas.clientWidth;
+  const canvasHeight = canvasRect.height || canvas.clientHeight;
   const r = box.getBoundingClientRect();
   return {
-    cx: ((r.left + r.width / 2 - canvasRect.left) / canvasRect.width) * 100,
-    cy: ((r.top + r.height / 2 - canvasRect.top) / canvasRect.height) * 100,
+    cx: canvasWidth ? ((r.left + r.width / 2 - canvasRect.left) / canvasWidth) * 100 : 50,
+    cy: canvasHeight ? ((r.top + r.height / 2 - canvasRect.top) / canvasHeight) * 100 : 50,
   };
 }
 
@@ -550,17 +579,17 @@ function showGridDropIndicator(box) {
   const canvas = document.getElementById('schedule-canvas');
   const dayKey = box.dataset.day;
   const { cx, cy } = boxCenterPct(box);
-  const { target, layout } = findGridDropTarget(dayKey, cy);
+  const { targetRow, layout } = findGridDropTarget(dayKey, cy);
   let indicator = document.getElementById('grid-drop-indicator');
-  if (!target) { if (indicator) indicator.style.display = 'none'; return; }
+  if (!targetRow) { if (indicator) indicator.style.display = 'none'; return; }
   if (!indicator) {
     indicator = document.createElement('div');
     indicator.id = 'grid-drop-indicator';
     canvas.appendChild(indicator);
   }
-  const pos = layout[target];
-  const insertAfter = cy > (pos.y + pos.height / 2);
-  const lineY = insertAfter ? pos.y + pos.height + GRID_ROW_GAP / 2 : pos.y - GRID_ROW_GAP / 2;
+  const lineY = cy > (targetRow.y + targetRow.height / 2)
+    ? targetRow.y + targetRow.height + GRID_ROW_GAP / 2
+    : targetRow.y - GRID_ROW_GAP / 2;
   indicator.style.display = 'block';
   indicator.style.left    = `${CANVAS_MARGIN}%`;
   indicator.style.width   = `${100 - 2 * CANVAS_MARGIN}%`;
@@ -575,14 +604,18 @@ function hideGridDropIndicator() {
 
 function applyGridReorder(dayKey, box) {
   const { cx, cy } = boxCenterPct(box);
-  const { target, layout } = findGridDropTarget(dayKey, cy);
-
+  const { targetRow } = findGridDropTarget(dayKey, cy);
+ 
   let order = getGridOrder().filter(k => k !== dayKey);
-  if (target) {
-    const pos = layout[target];
-    const insertAfter = cy > (pos.y + pos.height / 2);
-    let idx = order.indexOf(target);
-    if (insertAfter) idx += 1;
+  if (targetRow) {
+    const align = resolveDropAlign(cx);
+    const firstKey = targetRow.keys[0];
+    let idx = order.indexOf(firstKey);
+    if (targetRow.keys.length === 1) {
+      if (align === 'right') idx += 1;
+    } else {
+      if (align === 'right') idx += 1;
+    }
     order.splice(idx, 0, dayKey);
   } else {
     order.push(dayKey);
