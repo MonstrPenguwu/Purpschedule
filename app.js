@@ -240,7 +240,7 @@ function renderBox(dayKey) {
     box = buildBox(dayKey);
     canvas.appendChild(box);
     interact(box).draggable(dragConfig());
-    interact(box).resizable(resizeConfig());
+    attachResizeHandle(box, dayKey);
   } else {
     applyBoxStyles(box, dayKey);
     fillBoxContent(box, dayKey);
@@ -455,16 +455,6 @@ function snapPosition(dayKey, rawX, rawY) {
   ];
 }
 
-// Resize only ever grows a box from its top-left anchor (position never
-// changes — only the right/bottom edges move, see resizeConfig), so the only
-// way it can collide with another enabled box is by growing into one that's
-// to the right (for width) or below (for height). Unlike drag — which allows
-// free overlap, snapPosition is just an alignment aid — an uncapped resize
-// growing into a neighbour let that neighbour's (later-in-DOM-order, so
-// visually on top) box physically cover this box's own resize handle,
-// making the box un-shrinkable afterwards since there was nothing left to
-// click. Only a box sharing this one's other axis (i.e. actually in the way)
-// constrains the cap; unrelated boxes elsewhere on the canvas don't.
 function maxSizeAvoidingNeighbors(dayKey) {
   const day = state.days[dayKey];
   const x1 = day.position.x, y1 = day.position.y;
@@ -532,56 +522,65 @@ function dragConfig() {
   };
 }
 
-function resizeConfig() {
-  let minSize = { width: 5, height: 5 };
-  let maxSize = { width: 100, height: 100 };
-  return {
-    edges: { left: false, top: false, right: '.resize-handle', bottom: '.resize-handle' },
-    listeners: {
-      start(ev) {
-        // Both measured once per gesture, not per move event: minSize
-        // requires a reflow (temporarily un-fixing the box's size), and
-        // maxSize is constant through the gesture anyway since resize never
-        // moves this box's own position — only *other* boxes' positions
-        // would change it, and they don't move mid-gesture.
-        const dayKey = ev.target.dataset.day;
-        minSize = measureNaturalBoxSize(dayKey);
-        maxSize = maxSizeAvoidingNeighbors(dayKey);
-      },
-      move(ev) {
-        const canvas = document.getElementById('schedule-canvas');
-        const rect = canvas.getBoundingClientRect();
-        const dayKey = ev.target.dataset.day;
-        const day = state.days[dayKey];
-        const s = day.style;
-        const dwP = (ev.deltaRect.width  / rect.width)  * 100;
-        const dhP = (ev.deltaRect.height / rect.height) * 100;
-        // Bounded the same way dragging is: can't grow past CANVAS_MARGIN from
-        // the canvas edge or into a neighbouring box (maxSize — see
-        // maxSizeAvoidingNeighbors), and never below what the box's own
-        // content needs (minSize) — previously the floor was a flat 5%,
-        // which let a box shrink small enough to clip its own text down to
-        // a single letter.
-        s.width  = Math.max(minSize.width,  Math.min(s.width  + dwP, maxSize.width));
-        s.height = Math.max(minSize.height, Math.min(s.height + dhP, maxSize.height));
-        ev.target.style.width  = `${s.width}%`;
-        ev.target.style.height = `${s.height}%`;
-        if (dayKey === state.selectedDay) {
-          set('box-width',  Math.round(s.width  * 10) / 10);
-          set('box-height', Math.round(s.height * 10) / 10);
-        }
-      },
-      end(ev) {
-        saveToStorage();
-      },
-    },
-  };
+function attachResizeHandle(box, dayKey) {
+  const handle = box.querySelector('.resize-handle');
+  if (!handle) return;
+  let startX, startY, startW, startH, minSize, maxSize;
+
+  function onMove(clientX, clientY) {
+    const canvas = document.getElementById('schedule-canvas');
+    const rect = canvas.getBoundingClientRect();
+    const s = state.days[dayKey].style;
+    const dx = (clientX - startX) / rect.width  * 100;
+    const dy = (clientY - startY) / rect.height * 100;
+    s.width  = Math.max(minSize.width,  Math.min(startW + dx, maxSize.width));
+    s.height = Math.max(minSize.height, Math.min(startH + dy, maxSize.height));
+    box.style.width  = `${s.width}%`;
+    box.style.height = `${s.height}%`;
+    if (dayKey === state.selectedDay) {
+      set('box-width',  Math.round(s.width  * 10) / 10);
+      set('box-height', Math.round(s.height * 10) / 10);
+    }
+  }
+
+  function cleanup() {
+    window.removeEventListener('mousemove', onMouseMove);
+    window.removeEventListener('mouseup',   cleanup);
+    window.removeEventListener('touchmove', onTouchMove);
+    window.removeEventListener('touchend',  cleanup);
+    saveToStorage();
+  }
+
+  function onMouseMove(e) { onMove(e.clientX, e.clientY); }
+  function onTouchMove(e) { e.preventDefault(); onMove(e.touches[0].clientX, e.touches[0].clientY); }
+
+  handle.addEventListener('mousedown', e => {
+    e.stopPropagation(); e.preventDefault();
+    startX = e.clientX; startY = e.clientY;
+    startW = state.days[dayKey].style.width;
+    startH = state.days[dayKey].style.height;
+    minSize = measureNaturalBoxSize(dayKey);
+    maxSize = maxSizeAvoidingNeighbors(dayKey);
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup',   cleanup);
+  });
+
+  handle.addEventListener('touchstart', e => {
+    e.stopPropagation(); e.preventDefault();
+    startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+    startW = state.days[dayKey].style.width;
+    startH = state.days[dayKey].style.height;
+    minSize = measureNaturalBoxSize(dayKey);
+    maxSize = maxSizeAvoidingNeighbors(dayKey);
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend',  cleanup);
+  }, { passive: false });
 }
 
 function initDragging() {
   document.querySelectorAll('.day-box').forEach(el => {
     interact(el).draggable(dragConfig());
-    interact(el).resizable(resizeConfig());
+    attachResizeHandle(el, el.dataset.day);
   });
 }
 
