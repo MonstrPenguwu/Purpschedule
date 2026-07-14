@@ -221,12 +221,26 @@
         </div>
 
         <div class="section" id="grid-span-section">
-          <div class="section-label">Box Width</div>
-          <div class="span-toggle-row">
-            <button class="btn-secondary span-btn" id="span-full-btn" data-span="full">▭ Full Width</button>
-            <button class="btn-secondary span-btn" id="span-half-btn" data-span="half">▥ Half Width</button>
+          <div class="section-label">Box Layout</div>
+          <div class="span-visual-row">
+            <button class="span-visual-btn" data-span="full" data-align="left" title="Full Width">
+              <span class="span-visual-icon full"></span>
+              <span class="span-visual-label">Full</span>
+            </button>
+            <button class="span-visual-btn" data-span="half" data-align="left" title="Half — Left">
+              <span class="span-visual-icon half-left"></span>
+              <span class="span-visual-label">Left</span>
+            </button>
+            <button class="span-visual-btn" data-span="half" data-align="center" title="Half — Center">
+              <span class="span-visual-icon half-center"></span>
+              <span class="span-visual-label">Center</span>
+            </button>
+            <button class="span-visual-btn" data-span="half" data-align="right" title="Half — Right">
+              <span class="span-visual-icon half-right"></span>
+              <span class="span-visual-label">Right</span>
+            </button>
           </div>
-          <p class="hint">Height adjusts automatically to fit the content. Half-width boxes pair up with the next half-width day, in order.</p>
+          <p class="hint">Height adjusts automatically to fit the content. Two half-width days next to each other in the order share a row — or drag a box on the canvas to reorder it or change its side.</p>
         </div>
 
         <div class="section" id="freeform-dims-section">

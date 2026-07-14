@@ -126,11 +126,13 @@ function presetCategory(presetKey) {
 
 function applyLayoutForCategory(category) {
   const layout = LAYOUTS[category];
+  state.gridOrder = [...DAY_KEYS];
   DAY_KEYS.forEach((k, i) => {
     state.days[k].position = { x: layout.positions[i][0], y: layout.positions[i][1] };
     state.days[k].style.width  = layout.width;
     state.days[k].style.height = layout.height;
     state.days[k].gridSpan = 'half';
+    state.days[k].gridAlign = 'left';
     if (layout.dayFontSize) {
       state.days[k].style.dayFontSize   = layout.dayFontSize;
       state.days[k].style.timeFontSize  = layout.timeFontSize;
@@ -147,6 +149,7 @@ function mkDay(i) {
     position: { x: DEFAULT_POSITIONS[i][0], y: DEFAULT_POSITIONS[i][1] },
     style: { ...DEFAULT_STYLE },
     gridSpan: 'half',
+    gridAlign: 'left',
   };
 }
 
@@ -159,6 +162,9 @@ const state = {
   additionalTimezones: [],
   selectedDay: 'monday',
   gridMode: true,
+  // Grid-mode-only stacking order (independent of DAY_KEYS/Mon-Sun) — lets a
+  // box be dragged to a different row without changing which day it is.
+  gridOrder: [...DAY_KEYS],
   days: Object.fromEntries(DAY_KEYS.map((k,i) => [k, mkDay(i)])),
 };
 
@@ -244,7 +250,9 @@ function renderBox(dayKey) {
   if (isNew) {
     box = buildBox(dayKey);
     canvas.appendChild(box);
-    if (!state.gridMode) {
+    if (state.gridMode) {
+      interact(box).draggable(gridDragConfig());
+    } else {
       interact(box).draggable(dragConfig());
       interact(box).resizable(resizeConfig());
     }
@@ -376,8 +384,12 @@ function measureNaturalBoxSize(dayKey) {
 
 // ── Grid Layout ────────────────────────────────────────────────────────────
 // Mobile-friendly alternative to freeform drag/resize (see state.gridMode).
-// Enabled days flow into rows in DAY_KEYS order: a 'full' day takes its own
-// row; consecutive 'half' days pair up two-to-a-row. Row height always
+// Enabled days flow into rows in state.gridOrder (independent of DAY_KEYS —
+// dragging a box on the canvas reorders this, not the day itself): a 'full'
+// day takes its own row; consecutive 'half' days pair up two-to-a-row, each
+// preferring the side named by its own gridAlign ('left'/'center'/'right'),
+// resolved by resolvePairSides when both want the same side. An unpaired
+// 'half' sits in its own row per its own gridAlign. Row height always
 // auto-fits whichever box in that row needs the most room, measured with
 // the box pinned to its real target width — unlike measureNaturalBoxSize's
 // width:'auto' trick (needed there because the target width is unknown),
@@ -386,16 +398,46 @@ function measureNaturalBoxSize(dayKey) {
 const GRID_GUTTER = 2;
 const GRID_ROW_GAP = 2;
 
+function sanitizeGridOrder(order) {
+  if (!Array.isArray(order)) return [...DAY_KEYS];
+  const deduped = [...new Set(order.filter(k => DAY_KEYS.includes(k)))];
+  if (deduped.length !== DAY_KEYS.length) return [...DAY_KEYS];
+  return deduped;
+}
+
+function getGridOrder() {
+  return sanitizeGridOrder(state.gridOrder);
+}
+
+// Resolves which of two paired half-width days lands left vs right. `a` is
+// the one encountered first in gridOrder. Each day's own gridAlign is
+// honoured when only one of the pair wants a given side; if both want the
+// same explicit side, the earlier one (a) wins it and b is bumped to the
+// other side — an explicit tiebreak rather than an arbitrary one, since drag
+// reordering means "earlier" is something the user directly controls.
+function resolvePairSides(a, b) {
+  const A = state.days[a].gridAlign || 'left';
+  const B = state.days[b].gridAlign || 'left';
+  if (A === B && (A === 'left' || A === 'right')) {
+    return A === 'right' ? { left: b, right: a } : { left: a, right: b };
+  }
+  if (A === 'right') return { left: b, right: a };
+  if (B === 'right') return { left: a, right: b };
+  if (A === 'left')  return { left: a, right: b };
+  if (B === 'left')  return { left: b, right: a };
+  return { left: a, right: b }; // both center/unset — encounter order
+}
+
 function computeGridLayout() {
   const canvas = document.getElementById('schedule-canvas');
   const canvasRect = canvas.getBoundingClientRect();
   const usableWidth = 100 - 2 * CANVAS_MARGIN;
   const halfWidth = (usableWidth - GRID_GUTTER) / 2;
 
-  const enabledDays = DAY_KEYS.filter(k => state.days[k].enabled);
+  const enabledDays = getGridOrder().filter(k => state.days[k].enabled);
 
   // Group into rows. A leftover unpaired 'half' at a boundary gets its own
-  // row, occupying the left slot with the right slot left empty.
+  // row, positioned per its own gridAlign.
   const rows = [];
   let pendingHalf = null;
   enabledDays.forEach(k => {
@@ -433,11 +475,19 @@ function computeGridLayout() {
     // instead of a razor-tight fit against the measured content.
     rowHeightPct = rowHeightPct * 1.1 + 2;
 
-    let x = CANVAS_MARGIN;
-    row.forEach(k => {
-      layout[k] = { x, y, width: cellWidthPct, height: rowHeightPct };
-      x += cellWidthPct + GRID_GUTTER;
-    });
+    if (isFullRow) {
+      layout[row[0]] = { x: CANVAS_MARGIN, y, width: cellWidthPct, height: rowHeightPct };
+    } else if (row.length === 2) {
+      const { left, right } = resolvePairSides(row[0], row[1]);
+      layout[left]  = { x: CANVAS_MARGIN, y, width: cellWidthPct, height: rowHeightPct };
+      layout[right] = { x: CANVAS_MARGIN + cellWidthPct + GRID_GUTTER, y, width: cellWidthPct, height: rowHeightPct };
+    } else {
+      const align = state.days[row[0]].gridAlign || 'left';
+      const x = align === 'right'  ? CANVAS_MARGIN + usableWidth - cellWidthPct
+              : align === 'center' ? CANVAS_MARGIN + (usableWidth - cellWidthPct) / 2
+              : CANVAS_MARGIN;
+      layout[row[0]] = { x, y, width: cellWidthPct, height: rowHeightPct };
+    }
     y += rowHeightPct + GRID_ROW_GAP;
   });
 
@@ -454,6 +504,125 @@ function applyGridLayout() {
     box.style.width  = `${pos.width}%`;
     box.style.height = `${pos.height}%`;
   });
+}
+
+// ── Grid Drag-to-Reorder ───────────────────────────────────────────────────
+// In grid mode, size/position are computed (see computeGridLayout), so
+// dragging doesn't move a box pixel-by-pixel — it drops onto a target row
+// and reorders state.gridOrder, plus (for a half-width box) sets gridAlign
+// from how far left/center/right within the row it was dropped. The box
+// itself floats via a CSS transform layered on top of its grid position
+// while dragging (no state mutation until drop), then applyGridLayout snaps
+// everything into its new resting place with a short CSS transition.
+
+// Finds which OTHER enabled day's row is vertically closest to (cx, cy) —
+// shared by the live drop indicator and the actual drop handler so the
+// indicator always previews exactly what dropping now would do.
+function findGridDropTarget(dayKey, cy) {
+  const layout = computeGridLayout();
+  const others = Object.keys(layout).filter(k => k !== dayKey);
+  let target = null, minDist = Infinity;
+  others.forEach(k => {
+    const pos = layout[k];
+    const d = Math.abs(cy - (pos.y + pos.height / 2));
+    if (d < minDist) { minDist = d; target = k; }
+  });
+  return { target, layout };
+}
+
+function boxCenterPct(box) {
+  const canvas = document.getElementById('schedule-canvas');
+  const canvasRect = canvas.getBoundingClientRect();
+  const r = box.getBoundingClientRect();
+  return {
+    cx: ((r.left + r.width / 2 - canvasRect.left) / canvasRect.width) * 100,
+    cy: ((r.top + r.height / 2 - canvasRect.top) / canvasRect.height) * 100,
+  };
+}
+
+function resolveDropAlign(cx) {
+  const usableWidth = 100 - 2 * CANVAS_MARGIN;
+  const rel = (cx - CANVAS_MARGIN) / usableWidth;
+  return rel < 0.33 ? 'left' : rel > 0.67 ? 'right' : 'center';
+}
+
+function showGridDropIndicator(box) {
+  const canvas = document.getElementById('schedule-canvas');
+  const dayKey = box.dataset.day;
+  const { cx, cy } = boxCenterPct(box);
+  const { target, layout } = findGridDropTarget(dayKey, cy);
+  let indicator = document.getElementById('grid-drop-indicator');
+  if (!target) { if (indicator) indicator.style.display = 'none'; return; }
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.id = 'grid-drop-indicator';
+    canvas.appendChild(indicator);
+  }
+  const pos = layout[target];
+  const insertAfter = cy > (pos.y + pos.height / 2);
+  const lineY = insertAfter ? pos.y + pos.height + GRID_ROW_GAP / 2 : pos.y - GRID_ROW_GAP / 2;
+  indicator.style.display = 'block';
+  indicator.style.left    = `${CANVAS_MARGIN}%`;
+  indicator.style.width   = `${100 - 2 * CANVAS_MARGIN}%`;
+  indicator.style.top     = `${lineY}%`;
+  indicator.dataset.align = resolveDropAlign(cx);
+}
+
+function hideGridDropIndicator() {
+  const indicator = document.getElementById('grid-drop-indicator');
+  if (indicator) indicator.remove();
+}
+
+function applyGridReorder(dayKey, box) {
+  const { cx, cy } = boxCenterPct(box);
+  const { target, layout } = findGridDropTarget(dayKey, cy);
+
+  let order = getGridOrder().filter(k => k !== dayKey);
+  if (target) {
+    const pos = layout[target];
+    const insertAfter = cy > (pos.y + pos.height / 2);
+    let idx = order.indexOf(target);
+    if (insertAfter) idx += 1;
+    order.splice(idx, 0, dayKey);
+  } else {
+    order.push(dayKey);
+  }
+  state.gridOrder = order;
+
+  // Only meaningful for a half-width box, but harmless to set unconditionally
+  // — a full-width box ignores its own gridAlign in computeGridLayout.
+  state.days[dayKey].gridAlign = resolveDropAlign(cx);
+
+  renderAllBoxes();
+  saveToStorage();
+}
+
+function gridDragConfig() {
+  return {
+    inertia: false,
+    listeners: {
+      start(ev) {
+        const box = ev.target;
+        box.classList.add('grid-dragging');
+        box.dataset.dragX = '0';
+        box.dataset.dragY = '0';
+      },
+      move(ev) {
+        const box = ev.target;
+        const x = (parseFloat(box.dataset.dragX) || 0) + ev.dx;
+        const y = (parseFloat(box.dataset.dragY) || 0) + ev.dy;
+        box.dataset.dragX = x;
+        box.dataset.dragY = y;
+        box.style.transform = `translate(${x}px, ${y}px)`;
+        showGridDropIndicator(box);
+      },
+      end(ev) {
+        const box = ev.target;
+        applyGridReorder(box.dataset.day, box);
+        hideGridDropIndicator();
+      },
+    },
+  };
 }
 
 function highlightSelected() {
@@ -642,10 +811,13 @@ function resizeConfig() {
 }
 
 function initDragging() {
-  if (state.gridMode) return;
   document.querySelectorAll('.day-box').forEach(el => {
-    interact(el).draggable(dragConfig());
-    interact(el).resizable(resizeConfig());
+    if (state.gridMode) {
+      interact(el).draggable(gridDragConfig());
+    } else {
+      interact(el).draggable(dragConfig());
+      interact(el).resizable(resizeConfig());
+    }
   });
 }
 
@@ -727,8 +899,11 @@ function loadDayControls(dayKey) {
   set('box-height',        s.height);
 
   const span = day.gridSpan || 'full';
-  document.getElementById('span-full-btn').classList.toggle('active', span === 'full');
-  document.getElementById('span-half-btn').classList.toggle('active', span === 'half');
+  const align = day.gridAlign || 'left';
+  document.querySelectorAll('.span-visual-btn').forEach(btn => {
+    const match = span === 'full' ? btn.dataset.span === 'full' : (btn.dataset.span === 'half' && btn.dataset.align === align);
+    btn.classList.toggle('active', match);
+  });
 }
 
 // Shows the grid Full/Half span control (and hides the freeform width/height
@@ -822,11 +997,13 @@ function bindDayControls() {
     renderBox(state.selectedDay); saveToStorage();
   });
 
-  // Grid span (Full/Half width)
-  document.querySelectorAll('.span-btn').forEach(btn => {
+  // Grid layout (Full / Half-Left / Half-Center / Half-Right)
+  document.querySelectorAll('.span-visual-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      state.days[state.selectedDay].gridSpan = btn.dataset.span;
-      document.querySelectorAll('.span-btn').forEach(b => b.classList.toggle('active', b === btn));
+      const day = state.days[state.selectedDay];
+      day.gridSpan  = btn.dataset.span;
+      day.gridAlign = btn.dataset.align;
+      document.querySelectorAll('.span-visual-btn').forEach(b => b.classList.toggle('active', b === btn));
       renderAllBoxes(); saveToStorage();
     });
   });
@@ -1336,6 +1513,7 @@ function saveToStorage() {
       mainTimezone: state.mainTimezone,
       additionalTimezones: state.additionalTimezones,
       gridMode: state.gridMode,
+      gridOrder: state.gridOrder,
       days: state.days,
     };
     localStorage.setItem('ss_config', JSON.stringify(data));
@@ -1359,6 +1537,7 @@ function loadFromStorage() {
       if (d.mainTimezone)         state.mainTimezone         = d.mainTimezone;
       if (d.additionalTimezones)  state.additionalTimezones  = d.additionalTimezones;
       if (d.gridMode !== undefined) state.gridMode           = d.gridMode;
+      if (d.gridOrder)            state.gridOrder            = sanitizeGridOrder(d.gridOrder);
       if (d.days) DAY_KEYS.forEach((k, i) => {
         if (d.days[k]) {
           state.days[k] = { ...mkDay(i), ...d.days[k] };
@@ -1409,6 +1588,7 @@ function saveConfigFile() {
     mainTimezone: state.mainTimezone,
     additionalTimezones: state.additionalTimezones,
     gridMode: state.gridMode,
+    gridOrder: state.gridOrder,
     days: state.days,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -1429,6 +1609,7 @@ function loadConfigFile(file) {
       if (d.mainTimezone)        state.mainTimezone        = d.mainTimezone;
       if (d.additionalTimezones) state.additionalTimezones = d.additionalTimezones;
       if (d.gridMode !== undefined) state.gridMode         = d.gridMode;
+      if (d.gridOrder)              state.gridOrder        = sanitizeGridOrder(d.gridOrder);
       if (d.days) DAY_KEYS.forEach((k, i) => {
         if (d.days[k]) {
           state.days[k] = { ...mkDay(i), ...d.days[k] };
