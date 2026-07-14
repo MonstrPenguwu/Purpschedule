@@ -131,7 +131,7 @@ function applyLayoutForCategory(category) {
     state.days[k].position = { x: layout.positions[i][0], y: layout.positions[i][1] };
     state.days[k].style.width  = layout.width;
     state.days[k].style.height = layout.height;
-    state.days[k].gridSpan = 'half';
+    state.days[k].gridSpan = 'full';
     state.days[k].gridAlign = 'left';
     if (layout.dayFontSize) {
       state.days[k].style.dayFontSize   = layout.dayFontSize;
@@ -148,7 +148,7 @@ function mkDay(i) {
     hour: 7, minute: 0, period: 'PM',
     position: { x: DEFAULT_POSITIONS[i][0], y: DEFAULT_POSITIONS[i][1] },
     style: { ...DEFAULT_STYLE },
-    gridSpan: 'half',
+    gridSpan: 'full',
     gridAlign: 'left',
   };
 }
@@ -384,18 +384,10 @@ function measureNaturalBoxSize(dayKey) {
 
 // ── Grid Layout ────────────────────────────────────────────────────────────
 // Mobile-friendly alternative to freeform drag/resize (see state.gridMode).
-// Enabled days flow into rows in state.gridOrder (independent of DAY_KEYS —
-// dragging a box on the canvas reorders this, not the day itself): a 'full'
-// day takes its own row; consecutive 'half' days pair up two-to-a-row, each
-// preferring the side named by its own gridAlign ('left'/'center'/'right'),
-// resolved by resolvePairSides when both want the same side. An unpaired
-// 'half' sits in its own row per its own gridAlign. Row height always
-// auto-fits whichever box in that row needs the most room, measured with
-// the box pinned to its real target width — unlike measureNaturalBoxSize's
-// width:'auto' trick (needed there because the target width is unknown),
-// here the width is already decided by the row, so wrapped content (e.g.
-// .box-additional-times) measures correctly with no extra handling.
-const GRID_GUTTER = 2;
+// Each enabled day gets its own row in state.gridOrder order (independent of
+// DAY_KEYS — dragging a box on the canvas reorders this). Each box is
+// independently Full-width or Half-width, positioned left/center/right via
+// its own gridAlign. Row height auto-fits the box's content at its target width.
 const GRID_ROW_GAP = 2;
 
 function sanitizeGridOrder(order) {
@@ -408,40 +400,6 @@ function sanitizeGridOrder(order) {
 function getGridOrder() {
   return sanitizeGridOrder(state.gridOrder);
 }
- 
-function groupLayoutRows(layout) {
-  const rows = [];
-  Object.entries(layout)
-    .sort((a, b) => a[1].y - b[1].y)
-    .forEach(([k, pos]) => {
-      const last = rows[rows.length - 1];
-      if (last && Math.abs(last.y - pos.y) < 1 && Math.abs(last.height - pos.height) < 1) {
-        last.keys.push(k);
-      } else {
-        rows.push({ y: pos.y, height: pos.height, keys: [k] });
-      }
-    });
-  return rows;
-}
- 
-// Resolves which of two paired half-width days lands left vs right. `a` is
-// the one encountered first in gridOrder. Each day's own gridAlign is
-// honoured when only one of the pair wants a given side; if both want the
-// same explicit side, the earlier one (a) wins it and b is bumped to the
-// other side — an explicit tiebreak rather than an arbitrary one, since drag
-// reordering means "earlier" is something the user directly controls.
-function resolvePairSides(a, b) {
-  const A = state.days[a].gridAlign || 'left';
-  const B = state.days[b].gridAlign || 'left';
-  if (A === B && (A === 'left' || A === 'right')) {
-    return A === 'right' ? { left: b, right: a } : { left: a, right: b };
-  }
-  if (A === 'right') return { left: b, right: a };
-  if (B === 'right') return { left: a, right: b };
-  if (A === 'left')  return { left: a, right: b };
-  if (B === 'left')  return { left: b, right: a };
-  return { left: a, right: b }; // both center/unset — encounter order
-}
 
 function computeGridLayout() {
   const canvas = document.getElementById('schedule-canvas');
@@ -449,8 +407,8 @@ function computeGridLayout() {
   const canvasWidth = canvasRect.width || canvas.clientWidth;
   const canvasHeight = canvasRect.height || canvas.clientHeight;
   const usableWidth = 100 - 2 * CANVAS_MARGIN;
-  const halfWidth = (usableWidth - GRID_GUTTER) / 2;
- 
+  const halfWidth = usableWidth / 2;
+
   if (!canvasWidth || !canvasHeight) {
     const fallback = {};
     getGridOrder().filter(k => state.days[k].enabled).forEach(k => {
@@ -459,36 +417,19 @@ function computeGridLayout() {
     });
     return fallback;
   }
- 
-  const enabledDays = getGridOrder().filter(k => state.days[k].enabled);
-
-  // Group into rows. A leftover unpaired 'half' at a boundary gets its own
-  // row, positioned per its own gridAlign.
-  const rows = [];
-  let pendingHalf = null;
-  enabledDays.forEach(k => {
-    const span = state.days[k].gridSpan || 'full';
-    if (span === 'half') {
-      if (pendingHalf) { rows.push([pendingHalf, k]); pendingHalf = null; }
-      else pendingHalf = k;
-    } else {
-      if (pendingHalf) { rows.push([pendingHalf]); pendingHalf = null; }
-      rows.push([k]);
-    }
-  });
-  if (pendingHalf) rows.push([pendingHalf]);
 
   const layout = {};
   let y = CANVAS_MARGIN;
-  rows.forEach(row => {
-    const isFullRow = row.length === 1 && (state.days[row[0]].gridSpan || 'full') !== 'half';
-    const cellWidthPct = isFullRow ? usableWidth : halfWidth;
+
+  getGridOrder().filter(k => state.days[k].enabled).forEach(k => {
+    const isHalf = (state.days[k].gridSpan || 'full') === 'half';
+    const align = state.days[k].gridAlign || 'left';
+    const cellWidthPct = isHalf ? halfWidth : usableWidth;
     const cellWidthPx = (cellWidthPct / 100) * canvasWidth;
 
-    let rowHeightPct = 0;
-    row.forEach(k => {
-      const box = canvas.querySelector(`.day-box[data-day="${k}"]`);
-      if (!box) return;
+    const box = canvas.querySelector(`.day-box[data-day="${k}"]`);
+    let rowHeightPct = parseFloat(state.days[k].style.height) || 0;
+    if (box) {
       const prevW = box.style.width, prevH = box.style.height;
       box.style.width = `${cellWidthPx}px`;
       box.style.height = 'auto';
@@ -496,25 +437,17 @@ function computeGridLayout() {
       box.style.width = prevW;
       box.style.height = prevH;
       const naturalPct = canvasHeight ? (naturalH / canvasHeight) * 100 : 0;
-      rowHeightPct = Math.max(rowHeightPct, naturalPct, parseFloat(state.days[k].style.height) || 0);
-    });
-    // Same hybrid buffer as measureNaturalBoxSize — comfortable padding
-    // instead of a razor-tight fit against the measured content.
+      rowHeightPct = Math.max(rowHeightPct, naturalPct);
+    }
     rowHeightPct = rowHeightPct * 1.1 + 2;
 
-    if (isFullRow) {
-      layout[row[0]] = { x: CANVAS_MARGIN, y, width: cellWidthPct, height: rowHeightPct };
-    } else if (row.length === 2) {
-      const { left, right } = resolvePairSides(row[0], row[1]);
-      layout[left]  = { x: CANVAS_MARGIN, y, width: cellWidthPct, height: rowHeightPct };
-      layout[right] = { x: CANVAS_MARGIN + cellWidthPct + GRID_GUTTER, y, width: cellWidthPct, height: rowHeightPct };
-    } else {
-      const align = state.days[row[0]].gridAlign || 'left';
-      const x = align === 'right'  ? CANVAS_MARGIN + usableWidth - cellWidthPct
-              : align === 'center' ? CANVAS_MARGIN + (usableWidth - cellWidthPct) / 2
-              : CANVAS_MARGIN;
-      layout[row[0]] = { x, y, width: cellWidthPct, height: rowHeightPct };
-    }
+    const x = isHalf
+      ? (align === 'right'  ? CANVAS_MARGIN + usableWidth - cellWidthPct
+       : align === 'center' ? CANVAS_MARGIN + (usableWidth - cellWidthPct) / 2
+       : CANVAS_MARGIN)
+      : CANVAS_MARGIN;
+
+    layout[k] = { x, y, width: cellWidthPct, height: rowHeightPct };
     y += rowHeightPct + GRID_ROW_GAP;
   });
 
@@ -542,19 +475,19 @@ function applyGridLayout() {
 // while dragging (no state mutation until drop), then applyGridLayout snaps
 // everything into its new resting place with a short CSS transition.
 
-// Finds which OTHER enabled day's row is vertically closest to (cx, cy) —
+// Finds which OTHER enabled day is vertically closest to cy (% of canvas) —
 // shared by the live drop indicator and the actual drop handler so the
 // indicator always previews exactly what dropping now would do.
 function findGridDropTarget(dayKey, cy) {
   const layout = computeGridLayout();
-  const rows = groupLayoutRows(layout).filter(row => !row.keys.includes(dayKey));
-  let targetRow = null, minDist = Infinity;
-  rows.forEach(row => {
-    const center = row.y + row.height / 2;
+  let targetKey = null, minDist = Infinity;
+  Object.entries(layout).forEach(([k, pos]) => {
+    if (k === dayKey) return;
+    const center = pos.y + pos.height / 2;
     const d = Math.abs(cy - center);
-    if (d < minDist) { minDist = d; targetRow = row; }
+    if (d < minDist) { minDist = d; targetKey = k; }
   });
-  return { targetRow, layout };
+  return { targetKey, layout };
 }
 
 function boxCenterPct(box) {
@@ -578,23 +511,23 @@ function resolveDropAlign(cx) {
 function showGridDropIndicator(box) {
   const canvas = document.getElementById('schedule-canvas');
   const dayKey = box.dataset.day;
-  const { cx, cy } = boxCenterPct(box);
-  const { targetRow, layout } = findGridDropTarget(dayKey, cy);
+  const { cy } = boxCenterPct(box);
+  const { targetKey, layout } = findGridDropTarget(dayKey, cy);
   let indicator = document.getElementById('grid-drop-indicator');
-  if (!targetRow) { if (indicator) indicator.style.display = 'none'; return; }
+  if (!targetKey) { if (indicator) indicator.style.display = 'none'; return; }
   if (!indicator) {
     indicator = document.createElement('div');
     indicator.id = 'grid-drop-indicator';
     canvas.appendChild(indicator);
   }
-  const lineY = cy > (targetRow.y + targetRow.height / 2)
-    ? targetRow.y + targetRow.height + GRID_ROW_GAP / 2
-    : targetRow.y - GRID_ROW_GAP / 2;
+  const pos = layout[targetKey];
+  const lineY = cy > (pos.y + pos.height / 2)
+    ? pos.y + pos.height + GRID_ROW_GAP / 2
+    : pos.y - GRID_ROW_GAP / 2;
   indicator.style.display = 'block';
   indicator.style.left    = `${CANVAS_MARGIN}%`;
   indicator.style.width   = `${100 - 2 * CANVAS_MARGIN}%`;
   indicator.style.top     = `${lineY}%`;
-  indicator.dataset.align = resolveDropAlign(cx);
 }
 
 function hideGridDropIndicator() {
@@ -604,27 +537,22 @@ function hideGridDropIndicator() {
 
 function applyGridReorder(dayKey, box) {
   const { cx, cy } = boxCenterPct(box);
-  const { targetRow } = findGridDropTarget(dayKey, cy);
- 
+  const { targetKey, layout } = findGridDropTarget(dayKey, cy);
+
   let order = getGridOrder().filter(k => k !== dayKey);
-  if (targetRow) {
-    const align = resolveDropAlign(cx);
-    const firstKey = targetRow.keys[0];
-    let idx = order.indexOf(firstKey);
-    if (targetRow.keys.length === 1) {
-      if (align === 'right') idx += 1;
-    } else {
-      if (align === 'right') idx += 1;
-    }
+  if (targetKey) {
+    const pos = layout[targetKey];
+    let idx = order.indexOf(targetKey);
+    if (cy > pos.y + pos.height / 2) idx += 1;
     order.splice(idx, 0, dayKey);
   } else {
     order.push(dayKey);
   }
   state.gridOrder = order;
 
-  // Only meaningful for a half-width box, but harmless to set unconditionally
-  // — a full-width box ignores its own gridAlign in computeGridLayout.
-  state.days[dayKey].gridAlign = resolveDropAlign(cx);
+  if ((state.days[dayKey].gridSpan || 'full') === 'half') {
+    state.days[dayKey].gridAlign = resolveDropAlign(cx);
+  }
 
   renderAllBoxes();
   saveToStorage();
