@@ -81,17 +81,6 @@
       </div>
 
       <div class="section">
-        <div class="control-row">
-          <label>Grid Layout</label>
-          <label class="toggle">
-            <input type="checkbox" id="grid-mode-toggle" checked>
-            <span class="toggle-slider"></span>
-          </label>
-        </div>
-        <p class="hint">Automatically arranges boxes into a clean grid — sizes and positions are handled for you. Turn off for full manual drag &amp; resize control.</p>
-      </div>
-
-      <div class="section">
         <div class="section-label">Day Box Visibility</div>
         <div class="day-toggles" id="day-visibility-toggles"></div>
         <button class="btn-secondary" style="margin-top:10px" id="reset-positions-btn">↺ Reset All Positions</button>
@@ -220,27 +209,14 @@
           </div>
         </div>
 
-        <div class="section" id="grid-span-section">
-          <div class="section-label">Box Layout</div>
-          <div class="span-visual-row">
-            <button class="span-visual-btn" data-span="full" data-align="left" title="Full Width">
-              <span class="span-visual-icon full"></span>
-              <span class="span-visual-label">Full</span>
-            </button>
-            <button class="span-visual-btn" data-span="half" data-align="left" title="Half — Left">
-              <span class="span-visual-icon half-left"></span>
-              <span class="span-visual-label">Left</span>
-            </button>
-            <button class="span-visual-btn" data-span="half" data-align="center" title="Half — Center">
-              <span class="span-visual-icon half-center"></span>
-              <span class="span-visual-label">Center</span>
-            </button>
-            <button class="span-visual-btn" data-span="half" data-align="right" title="Half — Right">
-              <span class="span-visual-icon half-right"></span>
-              <span class="span-visual-label">Right</span>
-            </button>
+        <div class="section">
+          <div class="section-label">Snap to Column</div>
+          <div style="display:flex;gap:6px">
+            <button class="btn-secondary" id="snap-left-btn" style="flex:1">&#8592; Left</button>
+            <button class="btn-secondary" id="snap-center-btn" style="flex:1">&#8596; Center</button>
+            <button class="btn-secondary" id="snap-right-btn" style="flex:1">&#8594; Right</button>
           </div>
-          <p class="hint">Height adjusts automatically to fit the content. Two half-width days next to each other in the order share a row — or drag a box on the canvas to reorder it or change its side.</p>
+          <p class="hint">Snaps the selected box to that column — drag freely to fine-tune position.</p>
         </div>
 
         <div class="section" id="freeform-dims-section">
@@ -350,7 +326,7 @@
         <!-- Day boxes injected here -->
       </div>
     </div>
-    <div id="canvas-hint">Click a day box to edit it · Drag to reposition</div>
+    <div id="canvas-hint">Click a box to select it · Drag to move anywhere · Drag corner to resize</div>
   </main>
 
 </div>

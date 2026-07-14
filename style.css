@@ -254,52 +254,6 @@ input[type="color"] {
 .btn-secondary:hover { background: var(--bg-hover); color: var(--text); border-color: var(--purple); }
 .btn-secondary.active { background: var(--purple); color: #fff; border-color: var(--purple); }
 
-.span-visual-row {
-  display: flex;
-  gap: 6px;
-}
-.span-visual-btn {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 8px 4px;
-  cursor: pointer;
-  color: var(--text-dim);
-  font-size: 10px;
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.span-visual-btn:hover { border-color: var(--purple); color: var(--text); }
-.span-visual-btn.active {
-  background: rgba(145, 70, 255, 0.15);
-  border-color: var(--purple);
-  color: var(--text);
-}
-.span-visual-icon {
-  display: block;
-  width: 32px;
-  height: 18px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
-  position: relative;
-}
-.span-visual-icon::after {
-  content: '';
-  position: absolute;
-  top: 2px;
-  bottom: 2px;
-  width: 13px;
-  background: var(--purple);
-  border-radius: 2px;
-}
-.span-visual-icon.full::after { left: 2px; right: 2px; width: auto; }
-.span-visual-icon.half-left::after { left: 2px; }
-.span-visual-icon.half-center::after { left: 50%; transform: translateX(-50%); }
-.span-visual-icon.half-right::after { right: 2px; }
 
 .btn-export { font-size: 13px; padding: 10px 14px; margin-top: 10px; }
 
@@ -505,28 +459,6 @@ input[type="color"] {
   outline-offset: 2px;
 }
 
-.day-box.grid-mode {
-  cursor: grab;
-  transition: left 0.15s ease, top 0.15s ease, width 0.15s ease, height 0.15s ease;
-}
-
-.day-box.grid-mode.grid-dragging {
-  transition: none;
-  cursor: grabbing;
-  z-index: 50;
-  opacity: 0.85;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.45);
-}
-
-#grid-drop-indicator {
-  position: absolute;
-  height: 3px;
-  background: var(--purple);
-  border-radius: 2px;
-  pointer-events: none;
-  z-index: 60;
-  box-shadow: 0 0 6px rgba(145,70,255,0.8);
-}
 
 .resize-handle {
   position: absolute;
