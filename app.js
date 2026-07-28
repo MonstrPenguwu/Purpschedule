@@ -635,7 +635,13 @@ function loadDayControls(dayKey) {
   const day = state.days[dayKey];
   const s = day.style;
 
-  document.getElementById('day-no-stream').checked = day.noStream;
+  const noStreamCheckbox = document.getElementById('day-no-stream');
+  noStreamCheckbox.checked  = day.noStream;
+  // Dark day only means anything once the Box is visible — hidden days can't
+  // meaningfully be marked dark, so don't let the two states be set together.
+  noStreamCheckbox.disabled = !day.enabled;
+  noStreamCheckbox.closest('.control-row').title =
+    day.enabled ? '' : 'This day is hidden — unhide it to mark it as a dark day';
   const settingsDiv = document.getElementById('day-stream-settings');
   settingsDiv.style.opacity       = day.noStream ? '0.4' : '1';
   settingsDiv.style.pointerEvents = day.noStream ? 'none' : '';
@@ -1048,6 +1054,7 @@ function populateDayVisToggles() {
     lbl.querySelector('input').addEventListener('change', e => {
       state.days[k].enabled = e.target.checked;
       renderBox(k); saveToStorage();
+      if (k === state.selectedDay) loadDayControls(k);
     });
     container.appendChild(lbl);
   });

@@ -328,6 +328,7 @@ input[type="color"] {
 }
 .toggle input:checked + .toggle-slider { background: var(--purple); border-color: var(--purple); }
 .toggle input:checked + .toggle-slider::before { transform: translateX(16px); background: #fff; }
+.toggle input:disabled + .toggle-slider { opacity: 0.4; cursor: not-allowed; }
 
 /* ── Time row ── */
 
