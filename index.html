@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Stream Schedule Builder</title>
   <link rel="stylesheet" href="style.css">
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -319,6 +319,7 @@
 
   <!-- ═══════════ CANVAS AREA ═══════════ -->
   <main id="canvas-area">
+    <button id="mobile-menu-btn" aria-label="Open settings">&#9776;</button>
     <div id="schedule-wrapper">
       <div id="schedule-canvas">
         <div id="bg-layer"></div>
@@ -332,7 +333,6 @@
 </div>
 
 <div id="mobile-overlay"></div>
-<button id="mobile-menu-btn" aria-label="Open settings">&#9776;</button>
 <script src="vendor/interact.min.js"></script>
 <script src="vendor/html2canvas.min.js"></script>
 <script src="app.js"></script>

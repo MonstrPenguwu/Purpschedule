@@ -609,7 +609,7 @@ function applyCanvasPreset(preset) {
   if (ph > pw) {
     // Portrait — constrain by height so the full tall canvas is visible
     wrapper.style.width    = 'auto';
-    wrapper.style.height   = 'calc(100vh - 80px)';
+    wrapper.style.height   = 'calc(100dvh - 80px)';
     wrapper.style.maxWidth = '100%';
     wrapper.style.maxHeight = '';
   } else {
@@ -617,7 +617,7 @@ function applyCanvasPreset(preset) {
     wrapper.style.width    = '100%';
     wrapper.style.height   = 'auto';
     wrapper.style.maxWidth = '';
-    wrapper.style.maxHeight = 'calc(100vh - 80px)';
+    wrapper.style.maxHeight = 'calc(100dvh - 80px)';
   }
 
   // Orientation actually changed (not just switching resolution within the same
@@ -1445,7 +1445,7 @@ function init() {
     overlay.addEventListener('click', closeSidebar);
     // Auto-open sidebar when a day box is tapped on mobile
     document.getElementById('schedule-canvas').addEventListener('click', e => {
-      if (e.target.closest('.day-box') && window.matchMedia('(max-width:700px)').matches) openSidebar();
+      if (e.target.closest('.day-box') && window.matchMedia('(max-width:700px),(max-height:520px)').matches) openSidebar();
     });
   })();
 
