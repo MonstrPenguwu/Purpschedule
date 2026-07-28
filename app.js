@@ -310,7 +310,7 @@ function fillBoxContent(box, dayKey) {
 
 // Measures how big this box's own content actually needs to be. Box
 // width/height are normally fixed (see applyBoxStyles), so this briefly
-// switches them to 'auto' to read the box's natural shrink-to-fit size, then
+// switches them to 'min-content' to read the box's natural minimum size, then
 // restores the fixed values. Includes a 30% buffer so "the minimum" is
 // comfortable padding around the content, not a razor-tight fit against it.
 // Used both to floor the resize handle/number inputs (so a box can never be
@@ -324,29 +324,26 @@ function measureNaturalBoxSize(dayKey) {
 
   const prevWidth  = box.style.width;
   const prevHeight = box.style.height;
-  const currentPxWidth = box.getBoundingClientRect().width;
 
-  // .box-additional-times (the extra-timezone list) is flex-wrap:wrap by
-  // design — but CSS shrink-to-fit's "preferred width" (what width:'auto'
-  // below resolves to) is defined as the width with *no* wrapping at all, as
-  // if every extra timezone sat on one line. With 2-3 added zones that can
-  // be 2-3x wider than the box actually needs once it's allowed to wrap,
-  // which pinned the floor near the max-size cap and made "shrink after
-  // growing" feel broken. Capping it to the box's current width first makes
-  // it wrap the same way it already does, so the measurement reflects a
-  // wrapped layout instead of one unwrapped mega-line.
-  const additionalTimes = box.querySelector('.box-additional-times');
-  const prevATMaxWidth = additionalTimes ? additionalTimes.style.maxWidth : null;
-  if (additionalTimes) additionalTimes.style.maxWidth = `${currentPxWidth}px`;
-
-  box.style.width  = 'auto';
+  // 'min-content' (not 'auto') is what makes this correct for
+  // .box-additional-times, the extra-timezone list, which is flex-wrap:wrap.
+  // 'auto' resolves to shrink-to-fit, whose preferred width assumes *no*
+  // wrapping — as if every extra timezone sat on one line — which could
+  // measure 2-3x wider than the box actually needs. 'min-content' instead
+  // asks the browser for the smallest width with no overflow, which for
+  // wrappable content correctly allows each item its own line. Browsers
+  // compute this recursively from the actual content, so — unlike an earlier
+  // version of this function that capped the wrap width to the box's own
+  // current on-screen size — the result never depends on whatever size the
+  // box happened to already be, so a box that grew to fit several timezones
+  // can still measure back down to a small minimum once they're removed.
+  box.style.width  = 'min-content';
   box.style.height = 'auto';
 
   const naturalRect = box.getBoundingClientRect();
 
   box.style.width  = prevWidth;
   box.style.height = prevHeight;
-  if (additionalTimes) additionalTimes.style.maxWidth = prevATMaxWidth;
 
   // Hybrid buffer (10% relative + 3 flat percentage points) instead of a
   // pure multiplier — a flat ×1.3 gave tiny content barely-there padding
