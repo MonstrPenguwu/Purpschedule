@@ -28,6 +28,7 @@ const TIMEZONES = [
     { label:'Eastern Time (ET)',   value:'America/New_York' },
     { label:'Central Time (CT)',   value:'America/Chicago' },
     { label:'Mountain Time (MT)',  value:'America/Denver' },
+    { label:'Arizona (MST, no DST)', value:'America/Phoenix' },
     { label:'Pacific Time (PT)',   value:'America/Los_Angeles' },
     { label:'Alaska (AKT)',        value:'America/Anchorage' },
     { label:'Hawaii (HT)',         value:'Pacific/Honolulu' },
@@ -162,11 +163,13 @@ const state = {
 // ── Timezone Utilities ─────────────────────────────────────────────────────
 
 function tzOffsetMinutes(tz) {
-  const now = new Date();
-  // Reliable cross-browser method: compare locale strings parsed back as Date
-  const utc = new Date(now.toLocaleString('en-US', { timeZone: 'UTC' }));
-  const local = new Date(now.toLocaleString('en-US', { timeZone: tz }));
-  return (local - utc) / 60000;
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: tz, timeZoneName: 'shortOffset',
+  }).formatToParts(new Date());
+  const s = (parts.find(p => p.type === 'timeZoneName') || {}).value || 'GMT';
+  const m = s.match(/GMT([+-])(\d+)(?::(\d+))?/);
+  if (!m) return 0;
+  return (m[1] === '+' ? 1 : -1) * (parseInt(m[2], 10) * 60 + parseInt(m[3] || '0', 10));
 }
 
 function convertTime(hour12, minute, period, fromTZ, toTZ) {
