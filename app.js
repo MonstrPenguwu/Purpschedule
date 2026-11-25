@@ -154,7 +154,6 @@ const state = {
   canvasPreset: '16:9',
   exportFilename: 'stream-schedule',
   discordWebhook: '',
-  scheduleDate: new Date().toISOString().slice(0, 10),
   mainTimezone: 'America/New_York',
   additionalTimezones: [],
   selectedDay: 'monday',
@@ -163,9 +162,16 @@ const state = {
 
 // ── Timezone Utilities ─────────────────────────────────────────────────────
 
-function scheduleDateRef() {
-  // noon UTC on the schedule date — stable across timezone boundaries
-  return new Date((state.scheduleDate || new Date().toISOString().slice(0, 10)) + 'T12:00:00Z');
+const DAY_JS_INDEX = { monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6, sunday:0 };
+
+function nextDateForDayKey(dayKey) {
+  const target = DAY_JS_INDEX[dayKey];
+  const now = new Date();
+  let diff = target - now.getDay();
+  if (diff < 0) diff += 7;
+  const d = new Date(now);
+  d.setDate(d.getDate() + diff);
+  return d;
 }
 
 function tzOffsetMinutes(tz, date) {
@@ -179,13 +185,13 @@ function tzOffsetMinutes(tz, date) {
   return (m[1] === '+' ? 1 : -1) * (parseInt(m[2], 10) * 60 + parseInt(m[3] || '0', 10));
 }
 
-function convertTime(hour12, minute, period, fromTZ, toTZ) {
+function convertTime(hour12, minute, period, fromTZ, toTZ, date) {
   let h = parseInt(hour12, 10);
   if (period === 'PM' && h !== 12) h += 12;
   if (period === 'AM' && h === 12) h = 0;
-  const d = scheduleDateRef();
+  const d = date || new Date();
   const offset = tzOffsetMinutes(fromTZ, d);
-  const utc = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h, parseInt(minute,10)) - offset * 60000);
+  const utc = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), h, parseInt(minute,10)) - offset * 60000);
   return new Intl.DateTimeFormat('en-US', { timeZone: toTZ, hour:'numeric', minute:'2-digit', hour12:true }).format(utc);
 }
 
@@ -289,14 +295,14 @@ function applyBoxStyles(box, dayKey) {
 function fillBoxContent(box, dayKey) {
   const day = state.days[dayKey];
   const s = day.style;
-  const _sdr = scheduleDateRef();
-  const tzShort = tzShortName(state.mainTimezone, _sdr);
+  const dayDate = nextDateForDayKey(dayKey);
+  const tzShort = tzShortName(state.mainTimezone, dayDate);
 
   let addTZHtml = '';
   if (!day.noStream && state.additionalTimezones.length) {
     addTZHtml = state.additionalTimezones.map(tz => {
-      const t = convertTime(day.hour, day.minute, day.period, state.mainTimezone, tz);
-      const short = tzShortName(tz, _sdr);
+      const t = convertTime(day.hour, day.minute, day.period, state.mainTimezone, tz, dayDate);
+      const short = tzShortName(tz, dayDate);
       return `<span style="font-size:${Math.round(s.tzFontSize * 1.3)}px">${esc(short)}&nbsp;${esc(t)}</span>`;
     }).join('');
   }
@@ -959,12 +965,6 @@ function bindBackgroundControls() {
 }
 
 function bindTZControls() {
-  const dateEl = document.getElementById('schedule-date');
-  dateEl.value = state.scheduleDate;
-  dateEl.addEventListener('change', e => {
-    if (e.target.value) { state.scheduleDate = e.target.value; renderAllBoxes(); saveToStorage(); }
-  });
-
   document.getElementById('main-timezone').addEventListener('change', e => {
     state.mainTimezone = e.target.value; renderAllBoxes(); saveToStorage();
   });
@@ -1272,7 +1272,6 @@ function saveToStorage() {
       canvasPreset: state.canvasPreset,
       exportFilename: state.exportFilename,
       discordWebhook: state.discordWebhook,
-      scheduleDate: state.scheduleDate,
       mainTimezone: state.mainTimezone,
       additionalTimezones: state.additionalTimezones,
       days: state.days,
@@ -1295,7 +1294,6 @@ function loadFromStorage() {
       if (d.canvasPreset)         state.canvasPreset         = d.canvasPreset;
       if (d.exportFilename)       state.exportFilename       = d.exportFilename;
       if (d.discordWebhook)       state.discordWebhook       = d.discordWebhook;
-      if (d.scheduleDate)         state.scheduleDate         = d.scheduleDate;
       if (d.mainTimezone)         state.mainTimezone         = d.mainTimezone;
       if (d.additionalTimezones)  state.additionalTimezones  = d.additionalTimezones;
       if (d.days) DAY_KEYS.forEach((k, i) => {
