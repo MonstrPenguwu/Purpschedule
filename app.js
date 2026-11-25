@@ -150,7 +150,7 @@ function mkDay(i) {
 }
 
 const state = {
-  background: { image: null, brightness: 100, overlayColor: '#000000', overlayOpacity: 0, posX: 50, posY: 50, scale: 100 },
+  background: { image: null, brightness: 100, overlayColor: '#000000', overlayOpacity: 0, posX: 50, posY: 50, scale: 100, naturalWidth: 0, naturalHeight: 0 },
   canvasPreset: '16:9',
   exportFilename: 'stream-schedule',
   discordWebhook: '',
@@ -603,11 +603,30 @@ function applyBackground() {
   const bgLayer = document.getElementById('bg-layer');
   const overlay = document.getElementById('bg-overlay');
   bgLayer.style.backgroundImage    = state.background.image ? `url(${state.background.image})` : 'none';
-  bgLayer.style.backgroundSize     = `${state.background.scale}%`;
   bgLayer.style.backgroundPosition = `${state.background.posX}% ${state.background.posY}%`;
   bgLayer.style.filter              = `brightness(${state.background.brightness}%)`;
+
+  // Cover-based sizing: scale 100 = image fills the canvas (cover), higher = zoomed in.
+  // Falls back to width-% if natural dimensions aren't known yet (migration path).
+  const iW = state.background.naturalWidth;
+  const iH = state.background.naturalHeight;
+  if (state.background.image && iW > 0 && iH > 0) {
+    const canvas = document.getElementById('schedule-canvas');
+    const cW = canvas.clientWidth;
+    const cH = canvas.clientHeight;
+    if (cW > 0 && cH > 0) {
+      const coverFactor = Math.max(cW / iW, cH / iH);
+      const size = coverFactor * (state.background.scale / 100);
+      bgLayer.style.backgroundSize = `${Math.round(iW * size)}px ${Math.round(iH * size)}px`;
+    } else {
+      bgLayer.style.backgroundSize = `${state.background.scale}%`;
+    }
+  } else {
+    bgLayer.style.backgroundSize = `${state.background.scale}%`;
+  }
+
   const {r,g,b} = hex2rgb(state.background.overlayColor);
-  overlay.style.background          = `rgba(${r},${g},${b},${state.background.overlayOpacity/100})`;
+  overlay.style.background = `rgba(${r},${g},${b},${state.background.overlayOpacity/100})`;
 }
 
 // ── Canvas Resize ──────────────────────────────────────────────────────────
@@ -801,9 +820,16 @@ function pickImageFile(callback) {
 function loadImageFile(file) {
   const reader = new FileReader();
   reader.onload = ev => {
-    state.background.image = ev.target.result;
-    applyBackground();
-    saveToStorage();
+    const dataUrl = ev.target.result;
+    const img = new Image();
+    img.onload = () => {
+      state.background.image = dataUrl;
+      state.background.naturalWidth  = img.naturalWidth;
+      state.background.naturalHeight = img.naturalHeight;
+      applyBackground();
+      saveToStorage();
+    };
+    img.src = dataUrl;
   };
   reader.readAsDataURL(file);
 }
@@ -1145,9 +1171,12 @@ async function renderScheduleCanvas() {
       await new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
-          // Match CSS background-size: ${scale}% (width-based, auto height)
-          const drawW = comp.width * (state.background.scale / 100);
-          const drawH = drawW * (img.naturalHeight / img.naturalWidth);
+          // Match applyBackground() cover-based sizing: scale 100 = cover, higher = zoomed
+          const iW = img.naturalWidth, iH = img.naturalHeight;
+          const coverFactor = Math.max(comp.width / iW, comp.height / iH);
+          const size = coverFactor * (state.background.scale / 100);
+          const drawW = iW * size;
+          const drawH = iH * size;
           // Match CSS background-position percentage semantics
           const drawX = (comp.width  - drawW) * (state.background.posX / 100);
           const drawY = (comp.height - drawH) * (state.background.posY / 100);
@@ -1402,6 +1431,18 @@ function syncAllUI() {
 
 function init() {
   loadFromStorage();
+
+  // Migration: if a saved image has no natural dimensions, decode it now so
+  // cover-based sizing works on the first applyBackground() call in syncAllUI().
+  if (state.background.image && (!state.background.naturalWidth || !state.background.naturalHeight)) {
+    const img = new Image();
+    img.onload = () => {
+      state.background.naturalWidth  = img.naturalWidth;
+      state.background.naturalHeight = img.naturalHeight;
+      applyBackground();
+    };
+    img.src = state.background.image;
+  }
 
   populateTimeDropdowns();
   populateTZSelects();
