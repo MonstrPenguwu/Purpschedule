@@ -363,13 +363,11 @@ function measureNaturalBoxSize(dayKey) {
   box.style.width  = prevWidth;
   box.style.height = prevHeight;
 
-  // Hybrid buffer (10% relative + 3 flat percentage points) instead of a
-  // pure multiplier — a flat ×1.3 gave tiny content barely-there padding
-  // (6% → 8%) while blowing up already-substantial content (72% → 94%,
-  // right against the max-size cap). The additive term matters more the
-  // smaller the content is; the relative term keeps scaling sanely as
-  // content grows, instead of ballooning with it.
-  const buffer = v => v * 1.1 + 3;
+  // Hybrid buffer: relative term keeps proportional padding as content grows;
+  // additive term matters most for small content where a pure multiplier
+  // gives barely-there padding. 15% + 6pp gives reliable breathing room for
+  // variable font rendering across devices without over-inflating large boxes.
+  const buffer = v => v * 1.15 + 6;
   const maxUsable = 100 - 2 * CANVAS_MARGIN;
   return {
     width:  Math.min(maxUsable, buffer((naturalRect.width  / canvasRect.width)  * 100)),
@@ -740,24 +738,17 @@ function bindDayControls() {
     const el = document.getElementById(id);
     const ev = (el.tagName === 'INPUT' && el.type === 'range') ? 'input' : 'change';
     el.addEventListener(ev, e => {
-      let val = type === 'num' ? parseFloat(e.target.value) : e.target.value;
-      // Same floor as the resize handle — typing a value smaller than the
-      // box's own content needs would otherwise clip it down to unreadable.
-      if (id === 'box-width' || id === 'box-height') {
-        const min = measureNaturalBoxSize(state.selectedDay);
-        val = Math.max(val, id === 'box-width' ? min.width : min.height);
-        e.target.value = Math.round(val * 10) / 10;
-      }
+      const val = type === 'num' ? parseFloat(e.target.value) : e.target.value;
       state.days[state.selectedDay].style[key] = val;
       if (id === 'box-bg-opacity') setVal('box-opacity-val', `${Math.round(val)}%`);
       renderBox(state.selectedDay); saveToStorage();
     });
   });
 
-  // Fit to Content — sizes the box to exactly hug its current text at its
-  // current font size, with the same breathing-room buffer used as the
-  // resize floor. A reliable starting point instead of eyeballing a drag.
-  document.getElementById('fit-content-btn').addEventListener('click', () => {
+  document.getElementById('fit-content-btn').addEventListener('click', async () => {
+    // Wait for web fonts before measuring so the font actually used for
+    // rendering is the one the measurement sees — not the fallback.
+    await document.fonts.ready;
     const day = state.days[state.selectedDay];
     const fit = measureNaturalBoxSize(state.selectedDay);
     day.style.width  = Math.round(fit.width  * 10) / 10;
@@ -968,9 +959,10 @@ function bindBackgroundControls() {
     applyCanvasPreset(e.target.value); saveToStorage();
   });
 
-  document.getElementById('reset-positions-btn').addEventListener('click', () => {
+  document.getElementById('reset-positions-btn').addEventListener('click', async () => {
     applyLayoutForCategory(presetCategory(state.canvasPreset));
     renderAllBoxes();
+    await document.fonts.ready;
     fitAllBoxesToContent();
     saveToStorage();
   });
