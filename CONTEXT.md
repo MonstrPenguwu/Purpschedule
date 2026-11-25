@@ -4,6 +4,8 @@ A single-page tool for streamers to design a schedule graphic — one visual per
 
 ## Language
 
+### Schedule content
+
 **Day**:
 One of the seven fixed calendar identifiers (`monday`…`sunday`) used as a key. Never created or destroyed, has no content of its own.
 
@@ -42,3 +44,31 @@ _Avoid_: snap, snapping (without qualifier)
 **Column align**:
 Explicit, button-triggered alignment that jumps a Box to the left, center, or right of the Board's own usable width, ignoring every other Box. Horizontal only — there is no vertical counterpart today.
 _Avoid_: snap, snap to column (without qualifier)
+
+### Editor UI
+
+**Topbar**:
+The thin fixed bar above the Board. Holds the app logo, the Format selector, and a quick-export shortcut. Always visible — not part of the Control Sheet.
+_Avoid_: header, toolbar, navbar
+
+**Control Sheet**:
+The panel that slides up from the bottom of the screen to surface editing controls. Divided into four tabs — Canvas, Day, Time Zones, Save. Collapses when its active tab is tapped again, when the Board is tapped outside a Box, or when the pip handle is tapped. The Day tab's day-selector row stays sticky at the top while the rest of the panel scrolls.
+_Avoid_: sidebar, settings panel, drawer
+
+**Pip handle**:
+The short horizontal bar at the top of the Control Sheet. Tapping it collapses the sheet. Provides a visual affordance that the sheet is draggable/dismissible.
+_Avoid_: drag handle, close handle
+
+### Timezone conversion
+
+**Stream timezone**:
+The primary timezone shown on every Box — entered by the streamer and displayed first. All other timezones are derived from it.
+_Avoid_: main timezone, home timezone
+
+**Additional timezone**:
+A secondary timezone added by the streamer. Displayed on every Box beneath the Stream timezone, computed automatically — no manual entry per day.
+_Avoid_: extra timezone, secondary timezone
+
+**DST anchor**:
+The next upcoming calendar date for a given Day (e.g. "next Monday" for the Monday Box), computed at render time and used as the reference point for UTC-offset and abbreviated-name lookups. Ensures DST transitions that fall mid-week are reflected correctly in each Box without any manual date input.
+_Avoid_: schedule date, reference date
