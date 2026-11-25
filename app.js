@@ -779,6 +779,18 @@ function bindDayControls() {
     DAY_KEYS.forEach(k => { state.days[k].style = { ...src }; });
     renderAllBoxes(); saveToStorage();
   });
+
+  // +/- stepper buttons for box width/height
+  document.querySelectorAll('.stepper-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const input = document.getElementById(btn.dataset.target);
+      if (!input) return;
+      const delta = parseFloat(btn.dataset.delta);
+      const next  = Math.max(parseFloat(input.min), Math.min(parseFloat(input.max), parseFloat(input.value) + delta));
+      input.value = next;
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+  });
 }
 
 function pickImageFile(callback) {
@@ -992,6 +1004,7 @@ function bindExportControls() {
   });
 
   document.getElementById('export-btn').addEventListener('click', exportImage);
+  document.getElementById('export-top-btn').addEventListener('click', exportImage);
 
   document.getElementById('discord-webhook').addEventListener('input', e => {
     state.discordWebhook = e.target.value; saveToStorage();
@@ -1082,15 +1095,13 @@ function populateDayVisToggles() {
 // (see two-pass compositing note below). Returns the finished canvas. All hidden
 // UI and inline styles are restored before this resolves, whether it succeeds or throws.
 async function renderScheduleCanvas() {
-  const sidebar   = document.getElementById('sidebar');
-  const hint      = document.getElementById('canvas-hint');
-  const mobileBtn = document.getElementById('mobile-menu-btn');
-  const mobOver   = document.getElementById('mobile-overlay');
+  const topbar      = document.getElementById('topbar');
+  const hint        = document.getElementById('canvas-hint');
+  const bottomSheet = document.getElementById('bottom-sheet');
 
-  sidebar.style.display   = 'none';
-  hint.style.display      = 'none';
-  mobileBtn.style.display = 'none';
-  if (mobOver) mobOver.style.display = 'none';
+  topbar.style.display      = 'none';
+  hint.style.display        = 'none';
+  bottomSheet.style.display = 'none';
   document.querySelectorAll('.day-box.selected').forEach(b => b.classList.remove('selected'));
 
   await document.fonts.ready;
@@ -1177,10 +1188,9 @@ async function renderScheduleCanvas() {
     bgLayer.style.filter             = savedBgFilter;
     bgOverlay.style.background       = savedOverlay;
     canvas.style.background          = savedCanvasBg;
-    sidebar.style.display   = '';
-    hint.style.display      = '';
-    mobileBtn.style.display = '';
-    if (mobOver) mobOver.style.display = '';
+    topbar.style.display      = '';
+    hint.style.display        = '';
+    bottomSheet.style.display = '';
     highlightSelected();
   }
 }
@@ -1405,13 +1415,26 @@ function init() {
   populateTZSelects();
   populateDayVisToggles();
 
-  // Tab switching
-  document.querySelectorAll('.tab').forEach(tab => {
-    tab.addEventListener('click', () => {
-      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-      document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
-      tab.classList.add('active');
-      document.getElementById(`tab-${tab.dataset.tab}`).classList.add('active');
+  // Bottom sheet open/close
+  function openSheet(tabName) {
+    document.querySelectorAll('.tab-btn').forEach(b =>
+      b.classList.toggle('active', b.dataset.tab === tabName));
+    document.querySelectorAll('.sheet-panel').forEach(p =>
+      p.classList.toggle('active', p.id === 'tab-' + tabName));
+    document.getElementById('bottom-sheet').classList.add('sheet-open');
+    document.getElementById('app').classList.add('sheet-open');
+  }
+  function closeSheet() {
+    document.getElementById('bottom-sheet').classList.remove('sheet-open');
+    document.getElementById('app').classList.remove('sheet-open');
+  }
+
+  // Tab bar
+  document.querySelectorAll('.tab-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const isAlreadyOpen = btn.classList.contains('active') &&
+        document.getElementById('bottom-sheet').classList.contains('sheet-open');
+      isAlreadyOpen ? closeSheet() : openSheet(btn.dataset.tab);
     });
   });
 
@@ -1426,43 +1449,25 @@ function init() {
     });
   });
 
-  // Click on a box to select it
+  // Click on a box to select it and open Day tab
   document.getElementById('schedule-canvas').addEventListener('click', e => {
     const box = e.target.closest('.day-box');
-    if (!box) return;
+    if (!box) { closeSheet(); return; }
     const dayKey = box.dataset.day;
     state.selectedDay = dayKey;
     document.querySelectorAll('.day-btn').forEach(b => b.classList.toggle('active', b.dataset.day === dayKey));
     loadDayControls(dayKey);
     highlightSelected();
-    // Switch to Day tab
-    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-    document.querySelectorAll('.tab-content').forEach(tc => tc.classList.remove('active'));
-    document.querySelector('.tab[data-tab="day"]').classList.add('active');
-    document.getElementById('tab-day').classList.add('active');
+    openSheet('day');
   });
+
+  // Pip bar tap closes sheet
+  document.getElementById('sheet-pip-bar').addEventListener('click', closeSheet);
 
   bindDayControls();
   bindBackgroundControls();
   bindTZControls();
   bindExportControls();
-
-  // Mobile sidebar toggle
-  (function () {
-    const mbtn    = document.getElementById('mobile-menu-btn');
-    const overlay = document.getElementById('mobile-overlay');
-    const sb      = document.getElementById('sidebar');
-    function openSidebar()  { sb.classList.add('mobile-open');    overlay.classList.add('visible'); }
-    function closeSidebar() { sb.classList.remove('mobile-open'); overlay.classList.remove('visible'); }
-    mbtn.addEventListener('click', () =>
-      sb.classList.contains('mobile-open') ? closeSidebar() : openSidebar()
-    );
-    overlay.addEventListener('click', closeSidebar);
-    // Auto-open sidebar when a day box is tapped on mobile
-    document.getElementById('schedule-canvas').addEventListener('click', e => {
-      if (e.target.closest('.day-box') && window.matchMedia('(max-width:700px),(max-height:520px)').matches) openSidebar();
-    });
-  })();
 
   syncAllUI();
 }
