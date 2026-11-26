@@ -53,344 +53,284 @@
     <div id="canvas-hint">Tap a box to select · Drag to move · Drag ◢ to resize</div>
   </main>
 
-  <!-- ═══════════ BOTTOM SHEET ═══════════ -->
-  <div id="bottom-sheet">
+  <!-- ═══════════ CONTROL BAR ═══════════ -->
+  <div id="control-bar">
 
-    <div id="sheet-pip-bar">
-      <div id="sheet-pip"></div>
-    </div>
-
-    <div id="sheet-panels">
+    <div id="ctrl-panels-wrap">
 
       <!-- ── Canvas Panel ── -->
-      <div class="sheet-panel active" id="tab-background">
-
-        <div class="section">
-          <div class="section-label">Background Image</div>
-          <div id="upload-dropzone">
-            <button class="btn-upload" id="bg-upload-btn">📁 Upload / Drop Image</button>
-            <p class="hint">JPG · PNG · GIF · WEBP</p>
-          </div>
-          <div style="display:flex;gap:6px">
-            <button class="btn-secondary" id="clear-bg-btn" style="flex:1">✕ Clear</button>
-            <button class="btn-secondary" id="pan-bg-btn" style="flex:1">✥ Pan / Zoom</button>
-          </div>
-          <p class="hint" style="margin-top:6px">Drag to pan &middot; scroll or pinch to zoom</p>
+      <div class="ctrl-panel" id="cp-background">
+        <div id="upload-dropzone">
+          <button class="cp-btn" id="bg-upload-btn">📁<br>Upload</button>
         </div>
-
-        <div class="section">
-          <div class="section-label">Adjustments</div>
-          <div class="control-row">
-            <label>Brightness</label>
-            <div class="range-row">
-              <input type="range" id="bg-brightness" min="10" max="100" value="100">
-              <span id="bg-brightness-val">100%</span>
-            </div>
-          </div>
-          <div class="control-row">
-            <label>Scale</label>
-            <div class="range-row">
-              <input type="range" id="bg-scale" min="20" max="300" value="100">
-              <span id="bg-scale-val">100%</span>
-            </div>
-          </div>
-          <div class="control-row">
-            <label>Overlay Color</label>
-            <input type="color" id="overlay-color" value="#000000">
-          </div>
-          <div class="control-row">
-            <label>Overlay Opacity</label>
-            <div class="range-row">
-              <input type="range" id="overlay-opacity" min="0" max="90" value="0">
-              <span id="overlay-opacity-val">0%</span>
-            </div>
+        <button class="cp-btn" id="pan-bg-btn">✥<br>Pan</button>
+        <button class="cp-btn" id="clear-bg-btn">✕<br>Clear</button>
+        <div class="cp-sep"></div>
+        <div class="cp-chip">
+          <span class="cp-label">Brightness</span>
+          <div class="cp-slider-row">
+            <input type="range" id="bg-brightness" min="10" max="100" value="100">
+            <span id="bg-brightness-val" class="cp-val">100%</span>
           </div>
         </div>
-
-        <div class="section">
-          <div class="section-label">Day Box Visibility</div>
-          <div class="day-toggles" id="day-visibility-toggles"></div>
-          <button class="btn-secondary" style="margin-top:10px" id="reset-positions-btn">↺ Reset All Positions</button>
+        <div class="cp-chip">
+          <span class="cp-label">Scale</span>
+          <div class="cp-slider-row">
+            <input type="range" id="bg-scale" min="20" max="300" value="100">
+            <span id="bg-scale-val" class="cp-val">100%</span>
+          </div>
         </div>
-
+        <div class="cp-sep"></div>
+        <div class="cp-chip cp-chip-narrow">
+          <span class="cp-label">Overlay</span>
+          <input type="color" id="overlay-color" value="#000000">
+        </div>
+        <div class="cp-chip">
+          <span class="cp-label">Opacity</span>
+          <div class="cp-slider-row">
+            <input type="range" id="overlay-opacity" min="0" max="90" value="0">
+            <span id="overlay-opacity-val" class="cp-val">0%</span>
+          </div>
+        </div>
+        <div class="cp-sep"></div>
+        <div class="day-toggles" id="day-visibility-toggles"></div>
+        <div class="cp-sep"></div>
+        <button class="cp-btn" id="reset-positions-btn">↺<br>Reset</button>
       </div>
 
       <!-- ── Day Panel ── -->
-      <div class="sheet-panel" id="tab-day">
-
-        <div class="day-selector-sticky">
-          <div class="day-selector">
-            <button class="day-btn active" data-day="monday">Mon</button>
-            <button class="day-btn" data-day="tuesday">Tue</button>
-            <button class="day-btn" data-day="wednesday">Wed</button>
-            <button class="day-btn" data-day="thursday">Thu</button>
-            <button class="day-btn" data-day="friday">Fri</button>
-            <button class="day-btn" data-day="saturday">Sat</button>
-            <button class="day-btn" data-day="sunday">Sun</button>
-          </div>
+      <div class="ctrl-panel" id="cp-day">
+        <div class="cp-day-selector">
+          <button class="day-btn active" data-day="monday">Mon</button>
+          <button class="day-btn" data-day="tuesday">Tue</button>
+          <button class="day-btn" data-day="wednesday">Wed</button>
+          <button class="day-btn" data-day="thursday">Thu</button>
+          <button class="day-btn" data-day="friday">Fri</button>
+          <button class="day-btn" data-day="saturday">Sat</button>
+          <button class="day-btn" data-day="sunday">Sun</button>
         </div>
-
-        <div class="section">
-          <div class="control-row">
-            <label>No Stream Today</label>
-            <label class="toggle">
-              <input type="checkbox" id="day-no-stream">
-              <span class="toggle-slider"></span>
-            </label>
-          </div>
+        <div class="cp-sep"></div>
+        <div class="cp-chip cp-chip-narrow">
+          <span class="cp-label">No Stream</span>
+          <label class="toggle">
+            <input type="checkbox" id="day-no-stream">
+            <span class="toggle-slider"></span>
+          </label>
         </div>
-
+        <div class="cp-sep"></div>
         <div id="day-stream-settings">
-
-          <div class="section">
-            <div class="section-label">Stream Time</div>
+          <div class="cp-chip">
+            <span class="cp-label">Time</span>
             <div class="time-row">
               <select id="day-hour"></select>
               <span class="time-sep">:</span>
               <select id="day-minute"></select>
-              <select id="day-period">
-                <option>AM</option>
-                <option selected>PM</option>
-              </select>
+              <select id="day-period"><option>AM</option><option selected>PM</option></select>
             </div>
           </div>
-
-          <div class="section">
-            <div class="section-label">
-              Stream Title &nbsp;<span id="title-char-count" class="char-count">0/35</span>
-            </div>
-            <input type="text" id="day-title" maxlength="35" placeholder="e.g. Just Chatting, Valorant…">
+          <div class="cp-sep"></div>
+          <div class="cp-chip cp-chip-wide">
+            <span class="cp-label">Title &nbsp;<span id="title-char-count" class="char-count">0/35</span></span>
+            <input type="text" id="day-title" maxlength="35" placeholder="Just Chatting…">
           </div>
-
-          <div class="section">
-            <div class="section-label">Box Background</div>
-            <div class="control-row">
-              <label>Color</label>
-              <input type="color" id="box-bg-color" value="#1a1a2e">
-            </div>
-            <div class="control-row">
-              <label>Opacity</label>
-              <div class="range-row">
-                <input type="range" id="box-bg-opacity" min="0" max="100" value="85">
-                <span id="box-opacity-val">85%</span>
-              </div>
+          <div class="cp-sep"></div>
+          <div class="cp-chip cp-chip-narrow">
+            <span class="cp-label">Box</span>
+            <input type="color" id="box-bg-color" value="#1a1a2e">
+          </div>
+          <div class="cp-chip">
+            <span class="cp-label">Opacity</span>
+            <div class="cp-slider-row">
+              <input type="range" id="box-bg-opacity" min="0" max="100" value="85">
+              <span id="box-opacity-val" class="cp-val">85%</span>
             </div>
           </div>
-
-          <div class="section">
-            <div class="section-label">Border</div>
-            <div class="control-row">
-              <label>Color</label>
-              <input type="color" id="box-border-color" value="#9146ff">
-            </div>
-            <div class="control-row">
-              <label>Width (px)</label>
-              <input type="number" id="box-border-width" min="0" max="12" value="2">
-            </div>
-            <div class="control-row">
-              <label>Radius (px)</label>
-              <input type="number" id="box-border-radius" min="0" max="60" value="10">
+          <div class="cp-sep"></div>
+          <div class="cp-chip cp-chip-narrow">
+            <span class="cp-label">Border</span>
+            <input type="color" id="box-border-color" value="#9146ff">
+          </div>
+          <div class="cp-chip cp-chip-num">
+            <span class="cp-label">Width px</span>
+            <input type="number" id="box-border-width" min="0" max="12" value="2">
+          </div>
+          <div class="cp-chip cp-chip-num">
+            <span class="cp-label">Radius px</span>
+            <input type="number" id="box-border-radius" min="0" max="60" value="10">
+          </div>
+          <div class="cp-sep"></div>
+          <div class="cp-chip cp-chip-select">
+            <span class="cp-label">Font</span>
+            <select id="box-font-family">
+              <option value="Inter">Inter</option>
+              <option value="Roboto">Roboto</option>
+              <option value="Montserrat">Montserrat</option>
+              <option value="Oswald">Oswald</option>
+              <option value="Bebas Neue">Bebas Neue</option>
+              <option value="Anton">Anton</option>
+              <option value="Rajdhani">Rajdhani</option>
+              <option value="Exo 2">Exo 2</option>
+              <option value="Orbitron">Orbitron</option>
+              <option value="Oxanium">Oxanium</option>
+              <option value="Arial">Arial</option>
+              <option value="Georgia">Georgia</option>
+            </select>
+          </div>
+          <div class="cp-chip cp-chip-narrow">
+            <span class="cp-label">Text</span>
+            <input type="color" id="box-font-color" value="#ffffff">
+          </div>
+          <div class="cp-chip cp-chip-narrow">
+            <span class="cp-label">Accent</span>
+            <input type="color" id="box-accent-color" value="#9146ff">
+          </div>
+          <div class="cp-chip cp-chip-num">
+            <span class="cp-label">Day px</span>
+            <input type="number" id="box-day-size" min="6" max="60" value="14">
+          </div>
+          <div class="cp-chip cp-chip-num">
+            <span class="cp-label">Time px</span>
+            <input type="number" id="box-time-size" min="8" max="72" value="26">
+          </div>
+          <div class="cp-chip cp-chip-num">
+            <span class="cp-label">Title px</span>
+            <input type="number" id="box-title-size" min="6" max="40" value="13">
+          </div>
+          <div class="cp-chip cp-chip-num">
+            <span class="cp-label">TZ px</span>
+            <input type="number" id="box-tz-size" min="6" max="24" value="11">
+          </div>
+          <div class="cp-sep"></div>
+          <button class="cp-btn" id="snap-left-btn">&#8592; Left</button>
+          <button class="cp-btn" id="snap-center-btn">&#8596; Ctr</button>
+          <button class="cp-btn" id="snap-right-btn">&#8594; Right</button>
+          <div class="cp-sep"></div>
+          <div class="cp-chip cp-chip-stepper" id="freeform-dims-section">
+            <span class="cp-label">Width %</span>
+            <div class="stepper">
+              <button class="stepper-btn" data-target="box-width" data-delta="-1">&#8722;</button>
+              <input type="number" id="box-width" min="5" max="50" value="14">
+              <button class="stepper-btn" data-target="box-width" data-delta="1">+</button>
             </div>
           </div>
-
-          <div class="section">
-            <div class="section-label">Typography</div>
-            <div class="control-row">
-              <label>Font</label>
-              <select id="box-font-family">
-                <option value="Inter">Inter</option>
-                <option value="Roboto">Roboto</option>
-                <option value="Montserrat">Montserrat</option>
-                <option value="Oswald">Oswald</option>
-                <option value="Bebas Neue">Bebas Neue</option>
-                <option value="Anton">Anton</option>
-                <option value="Rajdhani">Rajdhani</option>
-                <option value="Exo 2">Exo 2</option>
-                <option value="Orbitron">Orbitron</option>
-                <option value="Oxanium">Oxanium</option>
-                <option value="Arial">Arial</option>
-                <option value="Georgia">Georgia</option>
-              </select>
-            </div>
-            <div class="control-row">
-              <label>Text Color</label>
-              <input type="color" id="box-font-color" value="#ffffff">
-            </div>
-            <div class="control-row">
-              <label>Accent Color</label>
-              <input type="color" id="box-accent-color" value="#9146ff">
-            </div>
-            <div class="control-row">
-              <label>Day Name Size</label>
-              <input type="number" id="box-day-size" min="6" max="60" value="14">
-            </div>
-            <div class="control-row">
-              <label>Time Size</label>
-              <input type="number" id="box-time-size" min="8" max="72" value="26">
-            </div>
-            <div class="control-row">
-              <label>Title Size</label>
-              <input type="number" id="box-title-size" min="6" max="40" value="13">
-            </div>
-            <div class="control-row">
-              <label>TZ Size</label>
-              <input type="number" id="box-tz-size" min="6" max="24" value="11">
+          <div class="cp-chip cp-chip-stepper">
+            <span class="cp-label">Height %</span>
+            <div class="stepper">
+              <button class="stepper-btn" data-target="box-height" data-delta="-1">&#8722;</button>
+              <input type="number" id="box-height" min="5" max="70" value="26">
+              <button class="stepper-btn" data-target="box-height" data-delta="1">+</button>
             </div>
           </div>
-
-          <div class="section">
-            <div class="section-label">Snap to Column</div>
-            <div style="display:flex;gap:6px">
-              <button class="btn-secondary" id="snap-left-btn" style="flex:1">&#8592; Left</button>
-              <button class="btn-secondary" id="snap-center-btn" style="flex:1">&#8596; Center</button>
-              <button class="btn-secondary" id="snap-right-btn" style="flex:1">&#8594; Right</button>
-            </div>
-            <p class="hint">Snaps the selected box to that column — drag to fine-tune.</p>
-          </div>
-
-          <div class="section" id="freeform-dims-section">
-            <div class="section-label">Box Size</div>
-            <div class="control-row">
-              <label>Width (%)</label>
-              <div class="stepper">
-                <button class="stepper-btn" data-target="box-width" data-delta="-1">&#8722;</button>
-                <input type="number" id="box-width" min="5" max="50" value="14">
-                <button class="stepper-btn" data-target="box-width" data-delta="1">+</button>
-              </div>
-            </div>
-            <div class="control-row">
-              <label>Height (%)</label>
-              <div class="stepper">
-                <button class="stepper-btn" data-target="box-height" data-delta="-1">&#8722;</button>
-                <input type="number" id="box-height" min="5" max="70" value="26">
-                <button class="stepper-btn" data-target="box-height" data-delta="1">+</button>
-              </div>
-            </div>
-            <button class="btn-secondary" id="fit-content-btn" style="margin-top:8px">⤢ Fit to Content</button>
-          </div>
-
-        </div><!-- #day-stream-settings -->
-
-        <div class="section">
-          <button class="btn-primary" id="apply-to-all-btn">⬇ Apply Style to All Days</button>
-        </div>
-
+          <button class="cp-btn" id="fit-content-btn">⤢<br>Fit</button>
+        </div><!-- end day-stream-settings -->
+        <div class="cp-sep"></div>
+        <button class="cp-btn" id="apply-to-all-btn">⬇<br>All</button>
       </div>
 
       <!-- ── Timezones Panel ── -->
-      <div class="sheet-panel" id="tab-timezones">
-
-        <div class="section">
-          <div class="section-label">Main Timezone</div>
-          <p class="hint">Times on boxes are shown in this zone first</p>
+      <div class="ctrl-panel" id="cp-timezones">
+        <div class="cp-chip cp-chip-select cp-chip-select-wide">
+          <span class="cp-label">Main Timezone</span>
           <select id="main-timezone"></select>
         </div>
-
-        <div class="section">
-          <div class="section-label">Additional Timezones</div>
-          <p class="hint">Auto-converts on every box — no math needed</p>
-          <div id="additional-tz-list"></div>
-          <select id="add-tz-select" style="margin-top:8px"></select>
-          <button class="btn-secondary" id="add-tz-btn" style="margin-top:6px">+ Add Timezone</button>
+        <div class="cp-sep"></div>
+        <div id="additional-tz-list"></div>
+        <div class="cp-chip cp-chip-select cp-chip-select-wide">
+          <span class="cp-label">Add Timezone</span>
+          <select id="add-tz-select"></select>
         </div>
-
+        <button class="cp-btn" id="add-tz-btn">+<br>Add</button>
       </div>
 
       <!-- ── Save Panel ── -->
-      <div class="sheet-panel" id="tab-export">
-
-        <div class="section">
-          <div class="section-label">Export Clean Image</div>
-          <p class="hint">Hides all editor controls — clean schedule only</p>
-          <div class="control-row">
-            <label>File Name</label>
-            <input type="text" id="export-filename" placeholder="stream-schedule" maxlength="100">
-          </div>
-          <div class="control-row">
-            <label>Format</label>
-            <select id="export-format">
-              <option value="png">PNG (lossless)</option>
-              <option value="jpeg">JPEG (smaller)</option>
-            </select>
-          </div>
-          <div class="control-row" id="quality-row" style="display:none">
-            <label>JPEG Quality</label>
-            <div class="range-row">
-              <input type="range" id="export-quality" min="0.5" max="1" step="0.05" value="0.92">
-              <span id="export-quality-val">92%</span>
-            </div>
-          </div>
-          <div class="control-row">
-            <label>Export Scale</label>
-            <select id="export-scale">
-              <option value="1">1× — screen size</option>
-              <option value="2" selected>2× — high-res</option>
-              <option value="3">3× — ultra</option>
-            </select>
-          </div>
-          <button class="btn-primary btn-export" id="export-btn">💾 Export as Image</button>
+      <div class="ctrl-panel" id="cp-export">
+        <div class="cp-chip cp-chip-wide">
+          <span class="cp-label">File Name</span>
+          <input type="text" id="export-filename" placeholder="stream-schedule" maxlength="100">
         </div>
-
-        <div class="section">
-          <div class="section-label">Post to Discord</div>
-          <p class="hint">Sends the exported image to a Discord channel via webhook. Stored only in this browser — never included in downloaded/shared config files.</p>
-          <div class="control-row">
-            <label>Webhook URL</label>
-            <input type="password" id="discord-webhook" placeholder="https://discord.com/api/webhooks/...">
+        <div class="cp-chip cp-chip-select">
+          <span class="cp-label">Format</span>
+          <select id="export-format">
+            <option value="png">PNG (lossless)</option>
+            <option value="jpeg">JPEG (smaller)</option>
+          </select>
+        </div>
+        <div id="quality-row" class="cp-chip" style="display:none">
+          <span class="cp-label">JPEG Quality</span>
+          <div class="cp-slider-row">
+            <input type="range" id="export-quality" min="0.5" max="1" step="0.05" value="0.92">
+            <span id="export-quality-val" class="cp-val">92%</span>
           </div>
-          <button class="btn-secondary" id="discord-btn">📤 Post to Discord</button>
         </div>
-
-        <div class="section">
-          <div class="section-label">Configuration</div>
-          <p class="hint">Config saves automatically to your browser. Use these to transfer between devices.</p>
-          <button class="btn-secondary" id="save-config-btn">💾 Download Config (.json)</button>
-          <button class="btn-secondary" id="load-config-btn" style="margin-top:6px">📂 Load Config (.json)</button>
-          <input type="file" id="config-upload" accept=".json" hidden>
+        <div class="cp-chip cp-chip-select">
+          <span class="cp-label">Export Scale</span>
+          <select id="export-scale">
+            <option value="1">1× — screen</option>
+            <option value="2" selected>2× — high-res</option>
+            <option value="3">3× — ultra</option>
+          </select>
         </div>
-
+        <button class="cp-btn cp-btn-primary" id="export-btn">💾<br>Export</button>
+        <div class="cp-sep"></div>
+        <div class="cp-chip cp-chip-wide">
+          <span class="cp-label">Discord Webhook</span>
+          <input type="password" id="discord-webhook" placeholder="https://discord.com/api/webhooks/…">
+        </div>
+        <button class="cp-btn" id="discord-btn">📤<br>Post</button>
+        <div class="cp-sep"></div>
+        <button class="cp-btn" id="save-config-btn">💾<br>Config</button>
+        <button class="cp-btn" id="load-config-btn">📂<br>Load</button>
+        <input type="file" id="config-upload" accept=".json" hidden>
       </div>
 
-    </div><!-- #sheet-panels -->
+    </div><!-- #ctrl-panels-wrap -->
 
-    <!-- ── Tab Bar ── -->
-    <nav id="tab-bar">
-      <button class="tab-btn active" data-tab="background">
-        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="3" width="18" height="18" rx="2"/>
-          <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/>
-          <polyline points="21,15 16,10 11,15"/>
-          <polyline points="11,15 7,12 3,15"/>
-        </svg>
-        <span class="tab-label">Canvas</span>
+    <div id="ctrl-back-bar">
+      <button id="ctrl-back-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        Back
       </button>
-      <button class="tab-btn" data-tab="day">
-        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <rect x="3" y="4" width="18" height="18" rx="2"/>
-          <line x1="16" y1="2" x2="16" y2="6"/>
-          <line x1="8" y1="2" x2="8" y2="6"/>
-          <line x1="3" y1="10" x2="21" y2="10"/>
-        </svg>
-        <span class="tab-label">Day</span>
-      </button>
-      <button class="tab-btn" data-tab="timezones">
-        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="9"/>
-          <polyline points="12,7 12,12 15,15"/>
-        </svg>
-        <span class="tab-label">Time Zones</span>
-      </button>
-      <button class="tab-btn" data-tab="export">
-        <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
-          <polyline points="17,21 17,13 7,13 7,21"/>
-          <polyline points="7,3 7,8 15,8"/>
-        </svg>
-        <span class="tab-label">Save</span>
-      </button>
-    </nav>
+      <span id="ctrl-active-label"></span>
+    </div>
 
-  </div><!-- #bottom-sheet -->
+  </div><!-- #control-bar -->
+
+  <!-- ── Tab Bar ── -->
+  <nav id="tab-bar">
+    <button class="tab-btn" data-tab="background">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="2"/>
+        <circle cx="8.5" cy="8.5" r="1.5" fill="currentColor" stroke="none"/>
+        <polyline points="21,15 16,10 11,15"/>
+        <polyline points="11,15 7,12 3,15"/>
+      </svg>
+      <span class="tab-label">Canvas</span>
+    </button>
+    <button class="tab-btn" data-tab="day">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2"/>
+        <line x1="16" y1="2" x2="16" y2="6"/>
+        <line x1="8" y1="2" x2="8" y2="6"/>
+        <line x1="3" y1="10" x2="21" y2="10"/>
+      </svg>
+      <span class="tab-label">Day</span>
+    </button>
+    <button class="tab-btn" data-tab="timezones">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="9"/>
+        <polyline points="12,7 12,12 15,15"/>
+      </svg>
+      <span class="tab-label">Time Zones</span>
+    </button>
+    <button class="tab-btn" data-tab="export">
+      <svg class="tab-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/>
+        <polyline points="17,21 17,13 7,13 7,21"/>
+        <polyline points="7,3 7,8 15,8"/>
+      </svg>
+      <span class="tab-label">Save</span>
+    </button>
+  </nav>
 
 </div>
 

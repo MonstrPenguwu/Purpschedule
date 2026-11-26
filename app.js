@@ -611,16 +611,10 @@ function applyBackground() {
   const iW = state.background.naturalWidth;
   const iH = state.background.naturalHeight;
   if (state.background.image && iW > 0 && iH > 0) {
-    const canvas = document.getElementById('schedule-canvas');
-    const cW = canvas.clientWidth;
-    const cH = canvas.clientHeight;
-    if (cW > 0 && cH > 0) {
-      const coverFactor = Math.max(cW / iW, cH / iH);
-      const size = coverFactor * (state.background.scale / 100);
-      bgLayer.style.backgroundSize = `${Math.round(iW * size)}px ${Math.round(iH * size)}px`;
-    } else {
-      bgLayer.style.backgroundSize = `${state.background.scale}%`;
-    }
+    const { w: pw, h: ph } = CANVAS_PRESETS[state.canvasPreset];
+    const coverFactor = Math.max(pw / iW, ph / iH);
+    const size = coverFactor * (state.background.scale / 100);
+    bgLayer.style.backgroundSize = `${Math.round(iW * size)}px ${Math.round(iH * size)}px`;
   } else {
     bgLayer.style.backgroundSize = `${state.background.scale}%`;
   }
@@ -1133,13 +1127,15 @@ function populateDayVisToggles() {
 async function renderScheduleCanvas() {
   const topbar      = document.getElementById('topbar');
   const hint        = document.getElementById('canvas-hint');
-  const bottomSheet = document.getElementById('bottom-sheet');
+  const controlBar  = document.getElementById('control-bar');
+  const tabBar      = document.getElementById('tab-bar');
 
   const safeZoneOverlay = document.getElementById('safe-zone-overlay');
   const savedSafeZoneClass = safeZoneOverlay.className;
   topbar.style.display      = 'none';
   hint.style.display        = 'none';
-  bottomSheet.style.display = 'none';
+  controlBar.style.display  = 'none';
+  tabBar.style.display      = 'none';
   safeZoneOverlay.className = '';
   document.querySelectorAll('.day-box.selected').forEach(b => b.classList.remove('selected'));
 
@@ -1232,7 +1228,8 @@ async function renderScheduleCanvas() {
     canvas.style.background          = savedCanvasBg;
     topbar.style.display      = '';
     hint.style.display        = '';
-    bottomSheet.style.display = '';
+    controlBar.style.display  = '';
+    tabBar.style.display      = '';
     safeZoneOverlay.className = savedSafeZoneClass;
     highlightSelected();
   }
@@ -1240,7 +1237,7 @@ async function renderScheduleCanvas() {
 
 async function exportImage() {
   const btn = document.getElementById('export-btn');
-  btn.textContent = '⏳ Rendering…'; btn.disabled = true;
+  btn.innerHTML = '⏳<br>Rendering…'; btn.disabled = true;
 
   try {
     const exportCanvas = await renderScheduleCanvas();
@@ -1283,7 +1280,7 @@ async function exportImage() {
   } catch (err) {
     alert('Export failed: ' + err.message);
   } finally {
-    btn.textContent = '💾 Export as Image'; btn.disabled = false;
+    btn.innerHTML = '💾<br>Export'; btn.disabled = false;
   }
 }
 
@@ -1470,26 +1467,29 @@ function init() {
   populateTZSelects();
   populateDayVisToggles();
 
-  // Bottom sheet open/close
-  function openSheet(tabName) {
+  // Control bar open/close
+  const CTRL_LABELS = { background: 'Canvas', day: 'Day', timezones: 'Time Zones', export: 'Save' };
+  function openCtrl(tabName) {
     document.querySelectorAll('.tab-btn').forEach(b =>
       b.classList.toggle('active', b.dataset.tab === tabName));
-    document.querySelectorAll('.sheet-panel').forEach(p =>
-      p.classList.toggle('active', p.id === 'tab-' + tabName));
-    document.getElementById('bottom-sheet').classList.add('sheet-open');
-    document.getElementById('app').classList.add('sheet-open');
+    document.querySelectorAll('.ctrl-panel').forEach(p =>
+      p.classList.toggle('active', p.id === 'cp-' + tabName));
+    document.getElementById('control-bar').classList.add('ctrl-open');
+    document.getElementById('app').classList.add('ctrl-open');
+    document.getElementById('ctrl-active-label').textContent = CTRL_LABELS[tabName] || tabName;
   }
-  function closeSheet() {
-    document.getElementById('bottom-sheet').classList.remove('sheet-open');
-    document.getElementById('app').classList.remove('sheet-open');
+  function closeCtrl() {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('control-bar').classList.remove('ctrl-open');
+    document.getElementById('app').classList.remove('ctrl-open');
   }
 
   // Tab bar
   document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const isAlreadyOpen = btn.classList.contains('active') &&
-        document.getElementById('bottom-sheet').classList.contains('sheet-open');
-      isAlreadyOpen ? closeSheet() : openSheet(btn.dataset.tab);
+        document.getElementById('control-bar').classList.contains('ctrl-open');
+      isAlreadyOpen ? closeCtrl() : openCtrl(btn.dataset.tab);
     });
   });
 
@@ -1507,17 +1507,17 @@ function init() {
   // Click on a box to select it and open Day tab
   document.getElementById('schedule-canvas').addEventListener('click', e => {
     const box = e.target.closest('.day-box');
-    if (!box) { closeSheet(); return; }
+    if (!box) { closeCtrl(); return; }
     const dayKey = box.dataset.day;
     state.selectedDay = dayKey;
     document.querySelectorAll('.day-btn').forEach(b => b.classList.toggle('active', b.dataset.day === dayKey));
     loadDayControls(dayKey);
     highlightSelected();
-    openSheet('day');
+    openCtrl('day');
   });
 
-  // Pip bar tap closes sheet
-  document.getElementById('sheet-pip-bar').addEventListener('click', closeSheet);
+  // Back button closes control bar
+  document.getElementById('ctrl-back-btn').addEventListener('click', closeCtrl);
 
   bindDayControls();
   bindBackgroundControls();

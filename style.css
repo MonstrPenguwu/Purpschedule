@@ -22,8 +22,7 @@
   --radius:     8px;
   --topbar-h:   50px;
   --tab-bar-h:  58px;
-  --pip-bar-h:  20px;
-  --sheet-content-h: 320px;
+  --ctrl-bar-h: 90px;
 }
 
 html, body {
@@ -113,62 +112,208 @@ html, body {
   color: var(--purple);
 }
 
-/* ── Bottom sheet ── */
+/* ── Control Bar ── */
 
-#bottom-sheet {
+#control-bar {
   position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  z-index: 100;
+  left: 0; right: 0; bottom: 0;
+  z-index: 101;
+  height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: height 0.25s cubic-bezier(0.4,0,0.2,1);
   background: var(--bg-sidebar);
-  border-top: 2px solid var(--border);
-  border-radius: 16px 16px 0 0;
   box-shadow: 0 -4px 24px rgba(0,0,0,0.5);
 }
+#control-bar.ctrl-open {
+  height: calc(var(--ctrl-bar-h) + var(--tab-bar-h));
+  border-top: 1px solid var(--border);
+}
 
-#sheet-pip-bar {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: var(--pip-bar-h);
-  cursor: pointer;
+#ctrl-panels-wrap {
+  height: var(--ctrl-bar-h);
+  overflow: hidden;
   flex-shrink: 0;
 }
 
-#sheet-pip {
-  width: 36px;
-  height: 4px;
+.ctrl-panel {
+  display: none;
+  height: 100%;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+.ctrl-panel::-webkit-scrollbar { height: 3px; }
+.ctrl-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.ctrl-panel.active { display: flex; }
+
+#ctrl-back-bar {
+  height: var(--tab-bar-h);
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  padding-bottom: env(safe-area-inset-bottom);
+  border-top: 1px solid var(--border);
+  gap: 12px;
+  flex-shrink: 0;
+  background: var(--bg-sidebar);
+}
+
+#ctrl-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 7px 10px;
+  border-radius: var(--radius);
+  transition: color 0.15s, background 0.15s;
+}
+#ctrl-back-btn:hover, #ctrl-back-btn:active { color: var(--text); background: var(--bg-hover); }
+
+#ctrl-active-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+/* ── Chips ── */
+
+.cp-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.cp-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  letter-spacing: 0.3px;
+}
+.cp-sep {
+  width: 1px;
+  align-self: stretch;
   background: var(--border);
-  border-radius: 2px;
-  transition: background 0.15s;
+  flex-shrink: 0;
+  margin: 0 2px;
 }
-#sheet-pip-bar:hover #sheet-pip { background: var(--text-dim); }
+.cp-slider-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.cp-slider-row input[type="range"] { width: 90px; flex: none; }
+.cp-val {
+  font-size: 10px;
+  color: var(--text-dim);
+  min-width: 30px;
+  text-align: right;
+}
+.cp-chip-narrow { align-items: center; }
+.cp-chip-num input[type="number"] { width: 56px; text-align: center; }
+.cp-chip-select select { width: 120px; }
+.cp-chip-select-wide select { width: 160px; }
+.cp-chip-wide input[type="text"],
+.cp-chip-wide input[type="password"] { width: 140px; }
 
-#sheet-panels {
-  max-height: 0;
-  overflow: hidden;
-  transition: max-height 0.3s cubic-bezier(0.4,0,0.2,1);
-}
-#bottom-sheet.sheet-open #sheet-panels {
-  max-height: var(--sheet-content-h);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-#sheet-panels::-webkit-scrollbar { width: 4px; }
-#sheet-panels::-webkit-scrollbar-track { background: transparent; }
-#sheet-panels::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+/* ── Control bar buttons ── */
 
-.sheet-panel { display: none; padding-bottom: 16px; }
-.sheet-panel.active { display: block; }
+.cp-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+  min-height: 54px;
+  min-width: 44px;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  text-align: center;
+}
+.cp-btn:hover { background: var(--bg-hover); border-color: var(--purple); color: var(--text); }
+.cp-btn.active { background: var(--purple); border-color: var(--purple); color: #fff; }
+.cp-btn-primary { background: var(--purple); border-color: var(--purple); color: #fff; }
+.cp-btn-primary:hover { background: var(--purple-dim); }
+
+/* ── Day selector in control bar ── */
+
+.cp-day-selector {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.cp-day-selector .day-btn { width: 36px; font-size: 10px; padding: 7px 2px; flex: none; }
+
+/* ── Override inputs to sensible sizes inside the strip ── */
+
+.ctrl-panel input[type="text"],
+.ctrl-panel input[type="password"] { width: 120px; }
+.ctrl-panel select { width: auto; }
+.ctrl-panel input[type="number"] { width: 56px; }
+.ctrl-panel .time-row select { width: 54px; flex: none; }
+.cp-chip-stepper .stepper input[type="number"] { width: 44px; }
+
+/* ── Control bar context overrides ── */
+
+#control-bar #upload-dropzone {
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: none;
+}
+
+#day-stream-settings {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+#additional-tz-list {
+  display: flex;
+  flex-direction: row;
+  gap: 6px;
+  align-items: center;
+}
+.tz-item { margin-bottom: 0; flex-shrink: 0; }
+.ctrl-panel .day-toggles { flex-wrap: nowrap; }
 
 /* ── Tab bar ── */
 
 #tab-bar {
-  display: flex;
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 100;
   height: var(--tab-bar-h);
-  border-top: 1px solid var(--border);
+  display: flex;
   background: var(--bg-sidebar);
+  border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom);
 }
 
@@ -367,19 +512,6 @@ input[type="color"] {
 
 /* ── Day Selector ── */
 
-.day-selector-sticky {
-  position: sticky;
-  top: 0;
-  z-index: 5;
-  background: var(--bg-sidebar);
-  border-bottom: 1px solid var(--border);
-}
-
-.day-selector {
-  display: flex;
-  gap: 4px;
-  padding: 10px 14px;
-}
 .day-btn {
   flex: 1;
   background: var(--bg-input);
@@ -534,10 +666,10 @@ input[type="color"] {
   padding: 12px 12px calc(var(--tab-bar-h) + 8px);
   overflow: hidden;
   gap: 6px;
-  transition: padding-bottom 0.3s cubic-bezier(0.4,0,0.2,1);
+  transition: padding-bottom 0.25s cubic-bezier(0.4,0,0.2,1);
 }
-#app.sheet-open #canvas-area {
-  padding-bottom: calc(var(--tab-bar-h) + var(--pip-bar-h) + var(--sheet-content-h) + 8px);
+#app.ctrl-open #canvas-area {
+  padding-bottom: calc(var(--ctrl-bar-h) + var(--tab-bar-h) + 8px);
 }
 
 #schedule-wrapper {
