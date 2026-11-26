@@ -1159,18 +1159,21 @@ async function renderScheduleCanvas() {
   // the image by scaling it up from CSS pixel dimensions.
   const hasBg = !!state.background.image;
 
+  // Make the canvas itself transparent so html2canvas doesn't render
+  // the CSS background-color (#1a1a2e) into the output — that would
+  // cover the background image we composite manually below.
+  const savedCanvasBg = canvas.style.background;
+  if (hasBg) canvas.style.background = 'transparent';
+
   try {
-    // Skip bg-layer, bg-overlay, and safe-zone-overlay from html2canvas
-    // so only day boxes (with transparent canvas background) are captured.
-    // Using ignoreElements is more reliable than inline-style overrides,
-    // which some html2canvas versions ignore when reading stylesheet values.
+    // Also skip bg-layer, bg-overlay, safe-zone-overlay via ignoreElements
+    // so both approaches work together for reliable transparency.
     const rendered = await html2canvas(canvas, {
       scale: exportScale, useCORS: true, allowTaint: true,
       backgroundColor: hasBg ? 'transparent' : '#1a1a2e', logging: false,
-      ignoreElements: el =>
-        el.id === 'bg-layer' ||
-        el.id === 'bg-overlay' ||
-        el.id === 'safe-zone-overlay',
+      ignoreElements: hasBg
+        ? el => el.id === 'bg-layer' || el.id === 'bg-overlay' || el.id === 'safe-zone-overlay'
+        : undefined,
     });
 
     let exportCanvas = rendered;
@@ -1228,6 +1231,7 @@ async function renderScheduleCanvas() {
 
     return exportCanvas;
   } finally {
+    if (hasBg) canvas.style.background = savedCanvasBg;
     topbar.style.display      = '';
     hint.style.display        = '';
     controlBar.style.display  = '';
