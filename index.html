@@ -278,11 +278,14 @@
         </div>
         <button class="cp-btn" id="discord-btn">📤<br>Post</button>
         <div class="cp-sep"></div>
+        <button class="cp-btn" id="tt-setup-btn">⚙️<br>TikTok</button>
+        <button class="cp-btn" id="tt-connect-btn">🔗<br>Connect</button>
+        <span id="tt-status" style="font-size:0.72em;white-space:nowrap;color:#aaa;flex-shrink:0">● Not connected</span>
         <div class="cp-chip cp-chip-wide">
-          <span class="cp-label">TikTok Caption</span>
+          <span class="cp-label">Caption</span>
           <input type="text" id="tiktok-caption" placeholder="Stream Schedule {date} #vtuber" maxlength="150">
         </div>
-        <button class="cp-btn" id="tiktok-btn">🎵<br>TikTok</button>
+        <button class="cp-btn cp-btn-primary" id="tiktok-btn">🎵<br>Post</button>
         <div class="cp-sep"></div>
         <button class="cp-btn" id="save-config-btn">💾<br>Config</button>
         <button class="cp-btn" id="load-config-btn">📂<br>Load</button>
@@ -343,5 +346,37 @@
 <script src="vendor/interact.min.js"></script>
 <script src="vendor/html2canvas.min.js"></script>
 <script src="app.js"></script>
+
+<!-- TikTok Setup Modal -->
+<div id="tt-setup-modal" style="display:none;position:fixed;inset:0;z-index:500;align-items:center;justify-content:center;background:rgba(0,0,0,0.65)">
+  <div style="background:var(--bg-sidebar);border:1px solid var(--border);border-radius:14px;padding:22px 24px;width:min(420px,92vw);display:flex;flex-direction:column;gap:14px">
+    <h3 style="margin:0;font-size:1em">TikTok Setup</h3>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:0.85em">Client Key
+      <input id="tt-client-key" type="text" placeholder="awuatj3h…" style="padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg-dark);color:inherit;font-size:1em">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:0.85em">Client Secret
+      <input id="tt-client-secret" type="password" placeholder="••••••••" style="padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg-dark);color:inherit;font-size:1em">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:0.85em">imgBB API Key <span style="opacity:0.6">(for image hosting)</span>
+      <input id="tt-imgbb-key" type="password" placeholder="••••••••" style="padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg-dark);color:inherit;font-size:1em">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:0.85em">Cloudflare Worker URL <span style="opacity:0.6">(optional CORS proxy)</span>
+      <input id="tt-worker-url" type="text" placeholder="https://your-worker.workers.dev" style="padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg-dark);color:inherit;font-size:1em">
+    </label>
+    <label style="display:flex;flex-direction:column;gap:4px;font-size:0.85em">Post Privacy
+      <select id="tt-privacy" style="padding:7px 10px;border-radius:7px;border:1px solid var(--border);background:var(--bg-dark);color:inherit;font-size:1em">
+        <option value="SELF_ONLY">Only me (safe for testing)</option>
+        <option value="PUBLIC_TO_EVERYONE">Public</option>
+        <option value="FOLLOWER_OF_CREATOR">Followers only</option>
+        <option value="MUTUAL_FOLLOW_FRIENDS">Friends only</option>
+      </select>
+    </label>
+    <div style="display:flex;gap:10px;margin-top:4px">
+      <button id="tt-modal-save" style="flex:1;padding:9px;border-radius:8px;border:none;background:#ff0050;color:#fff;font-weight:600;cursor:pointer;font-size:0.95em">Save</button>
+      <button id="tt-modal-close" style="padding:9px 16px;border-radius:8px;border:1px solid var(--border);background:transparent;color:inherit;cursor:pointer;font-size:0.95em">Cancel</button>
+    </div>
+    <p style="margin:0;font-size:0.75em;opacity:0.55">Credentials are stored only in your browser's localStorage — never sent to any server except TikTok directly.</p>
+  </div>
+</div>
 </body>
 </html>

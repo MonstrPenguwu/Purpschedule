@@ -158,6 +158,7 @@ const state = {
   additionalTimezones: [],
   selectedDay: 'monday',
   days: Object.fromEntries(DAY_KEYS.map((k,i) => [k, mkDay(i)])),
+  tiktok: { clientKey: '', clientSecret: '', workerUrl: '', imgbbKey: '', accessToken: '', refreshToken: '', tokenExpiry: 0, openId: '', privacyLevel: 'SELF_ONLY' },
 };
 
 // ── Timezone Utilities ─────────────────────────────────────────────────────
@@ -1046,6 +1047,28 @@ function bindExportControls() {
   document.getElementById('discord-btn').addEventListener('click', postToDiscord);
 
   document.getElementById('tiktok-btn').addEventListener('click', postToTikTok);
+  document.getElementById('tt-connect-btn').addEventListener('click', startTikTokLogin);
+  document.getElementById('tt-setup-btn').addEventListener('click', () => {
+    document.getElementById('tt-client-key').value    = state.tiktok.clientKey;
+    document.getElementById('tt-client-secret').value = state.tiktok.clientSecret;
+    document.getElementById('tt-worker-url').value    = state.tiktok.workerUrl;
+    document.getElementById('tt-imgbb-key').value     = state.tiktok.imgbbKey;
+    document.getElementById('tt-privacy').value       = state.tiktok.privacyLevel || 'SELF_ONLY';
+    document.getElementById('tt-setup-modal').style.display = 'flex';
+  });
+  document.getElementById('tt-modal-close').addEventListener('click', () => {
+    document.getElementById('tt-setup-modal').style.display = 'none';
+  });
+  document.getElementById('tt-modal-save').addEventListener('click', () => {
+    state.tiktok.clientKey   = document.getElementById('tt-client-key').value.trim();
+    state.tiktok.clientSecret= document.getElementById('tt-client-secret').value.trim();
+    state.tiktok.workerUrl   = document.getElementById('tt-worker-url').value.trim();
+    state.tiktok.imgbbKey    = document.getElementById('tt-imgbb-key').value.trim();
+    state.tiktok.privacyLevel= document.getElementById('tt-privacy').value;
+    saveToStorage();
+    document.getElementById('tt-setup-modal').style.display = 'none';
+    updateTikTokUI();
+  });
 
   document.getElementById('save-config-btn').addEventListener('click', saveConfigFile);
   document.getElementById('load-config-btn').addEventListener('click', () => document.getElementById('config-upload').click());
@@ -1351,6 +1374,7 @@ function showTikTokToast(caption) {
 }
 
 async function postToTikTok() {
+  if (ttConnected()) { await postToTikTokAPI(); return; }
   const btn = document.getElementById('tiktok-btn');
   btn.innerHTML = '⏳<br>…'; btn.disabled = true;
 
@@ -1394,6 +1418,175 @@ async function postToTikTok() {
   }
 }
 
+// ── TikTok OAuth + Posting ─────────────────────────────────────────────────
+
+const TT_REDIRECT = 'https://monstrpenguwu.github.io/Purpschedule/';
+const TT_AUTH_URL  = 'https://www.tiktok.com/v2/auth/authorize/';
+const TT_TOKEN_URL = 'https://open.tiktokapis.com/v2/oauth/token/';
+
+function ttConnected() {
+  return !!state.tiktok.accessToken && state.tiktok.tokenExpiry > Date.now();
+}
+
+function updateTikTokUI() {
+  const statusEl = document.getElementById('tt-status');
+  const connectBtn = document.getElementById('tt-connect-btn');
+  if (!statusEl || !connectBtn) return;
+  if (ttConnected()) {
+    statusEl.textContent = '● Connected';
+    statusEl.style.color = '#4caf50';
+    connectBtn.innerHTML = '🔓<br>Disconnect';
+  } else {
+    statusEl.textContent = '● Not connected';
+    statusEl.style.color = '#aaa';
+    connectBtn.innerHTML = '🔗<br>Connect';
+  }
+}
+
+function ttGenVerifier() {
+  const arr = new Uint8Array(32);
+  crypto.getRandomValues(arr);
+  return btoa(String.fromCharCode(...arr)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function ttGenChallenge(verifier) {
+  const data = new TextEncoder().encode(verifier);
+  const digest = await crypto.subtle.digest('SHA-256', data);
+  return btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function startTikTokLogin() {
+  if (ttConnected()) {
+    if (!confirm('Disconnect TikTok account?')) return;
+    state.tiktok.accessToken = '';
+    state.tiktok.refreshToken = '';
+    state.tiktok.tokenExpiry = 0;
+    state.tiktok.openId = '';
+    saveToStorage();
+    updateTikTokUI();
+    return;
+  }
+  const { clientKey } = state.tiktok;
+  if (!clientKey) { alert('Enter your TikTok Client Key in the TikTok Setup first.'); return; }
+
+  const verifier = ttGenVerifier();
+  const challenge = await ttGenChallenge(verifier);
+  const csrfState = ttGenVerifier();
+  localStorage.setItem('tt_verifier', verifier);
+  localStorage.setItem('tt_state', csrfState);
+
+  const params = new URLSearchParams({
+    client_key: clientKey,
+    scope: 'user.info.basic,video.publish',
+    response_type: 'code',
+    redirect_uri: TT_REDIRECT,
+    state: csrfState,
+    code_challenge: challenge,
+    code_challenge_method: 'S256',
+  });
+  window.location.href = `${TT_AUTH_URL}?${params}`;
+}
+
+async function handleTikTokCallback() {
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  if (!code) return;
+
+  history.replaceState({}, '', window.location.pathname);
+
+  const savedState = localStorage.getItem('tt_state');
+  if (params.get('state') !== savedState) { alert('TikTok auth state mismatch. Try again.'); return; }
+
+  const verifier = localStorage.getItem('tt_verifier') || '';
+  localStorage.removeItem('tt_verifier');
+  localStorage.removeItem('tt_state');
+
+  const { clientKey, clientSecret, workerUrl } = state.tiktok;
+  const body = { client_key: clientKey, client_secret: clientSecret, code, grant_type: 'authorization_code', redirect_uri: TT_REDIRECT, code_verifier: verifier };
+
+  try {
+    let res;
+    if (workerUrl) {
+      // Worker proxies the call and handles CORS
+      res = await fetch(workerUrl, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    } else {
+      // Try direct (may fail CORS on some browsers)
+      res = await fetch(TT_TOKEN_URL, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Cache-Control': 'no-cache' }, body: new URLSearchParams(body) });
+    }
+    const data = await res.json();
+    if (data.access_token) {
+      state.tiktok.accessToken  = data.access_token;
+      state.tiktok.refreshToken = data.refresh_token || '';
+      state.tiktok.tokenExpiry  = Date.now() + (data.expires_in || 86400) * 1000;
+      state.tiktok.openId       = data.open_id || '';
+      saveToStorage();
+      updateTikTokUI();
+      alert('✅ TikTok connected!');
+    } else {
+      alert('TikTok auth failed: ' + (data.message || data.error_description || JSON.stringify(data)));
+    }
+  } catch (err) {
+    alert('TikTok token exchange failed: ' + err.message + '\n\nIf this is a CORS error, add your Cloudflare Worker URL in TikTok Setup.');
+  }
+}
+
+async function uploadToImgBB(blob) {
+  const { imgbbKey } = state.tiktok;
+  if (!imgbbKey) throw new Error('No imgBB API key set. Add it in TikTok Setup.');
+  const form = new FormData();
+  form.append('image', blob);
+  const res = await fetch(`https://api.imgbb.com/1/upload?key=${encodeURIComponent(imgbbKey)}`, { method: 'POST', body: form });
+  const data = await res.json();
+  if (data.success) return data.data.url;
+  throw new Error('imgBB upload failed: ' + (data.error?.message || JSON.stringify(data)));
+}
+
+async function postToTikTokAPI() {
+  if (!ttConnected()) { alert('Connect your TikTok account first (Save panel → Connect).'); return; }
+
+  const btn = document.getElementById('tiktok-btn');
+  btn.innerHTML = '⏳<br>…'; btn.disabled = true;
+
+  try {
+    const exportCanvas = await renderScheduleCanvas();
+    const format  = document.getElementById('export-format').value;
+    const quality = parseFloat(document.getElementById('export-quality').value);
+    const mime    = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const blob    = await new Promise(resolve => exportCanvas.toBlob(resolve, mime, quality));
+
+    const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const captionTemplate = document.getElementById('tiktok-caption').value.trim();
+    const caption = captionTemplate
+      ? captionTemplate.replace(/\{date\}/gi, dateStr)
+      : `Stream Schedule ${dateStr} #vtuber #streamschedule`;
+
+    btn.innerHTML = '📤<br>…';
+    const imageUrl = await uploadToImgBB(blob);
+
+    const privacy = document.getElementById('tt-privacy')?.value || state.tiktok.privacyLevel || 'SELF_ONLY';
+    const res = await fetch('https://open.tiktokapis.com/v2/post/publish/content/init/', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${state.tiktok.accessToken}`, 'Content-Type': 'application/json; charset=UTF-8' },
+      body: JSON.stringify({
+        post_info: { title: caption, privacy_level: privacy, disable_duet: false, disable_comment: false, disable_stitch: false },
+        source_info: { source: 'PULL_FROM_URL', photo_cover_index: 0, photo_images: [imageUrl] },
+        post_mode: 'DIRECT_POST',
+        media_type: 'PHOTO',
+      }),
+    });
+    const data = await res.json();
+    if (data.data?.publish_id || res.ok) {
+      btn.innerHTML = '✅<br>Posted!';
+      setTimeout(() => { btn.innerHTML = '🎵<br>TikTok'; btn.disabled = false; }, 3000);
+    } else {
+      throw new Error(data.error?.message || data.message || JSON.stringify(data));
+    }
+  } catch (err) {
+    alert('TikTok post failed: ' + err.message);
+    btn.innerHTML = '🎵<br>TikTok'; btn.disabled = false;
+  }
+}
+
 // ── Save / Load ────────────────────────────────────────────────────────────
 
 function saveToStorage() {
@@ -1408,6 +1601,8 @@ function saveToStorage() {
       days: state.days,
     };
     localStorage.setItem('ss_config', JSON.stringify(data));
+    // TikTok credentials stored separately (sensitive)
+    localStorage.setItem('ss_tiktok', JSON.stringify(state.tiktok));
     if (state.background.image) {
       try { localStorage.setItem('ss_bg', state.background.image); } catch(_) { /* image too large */ }
     } else {
@@ -1466,6 +1661,10 @@ function loadFromStorage() {
     }
     const bg = localStorage.getItem('ss_bg');
     if (bg) state.background.image = bg;
+  } catch(_) {}
+  try {
+    const tt = localStorage.getItem('ss_tiktok');
+    if (tt) Object.assign(state.tiktok, JSON.parse(tt));
   } catch(_) {}
 }
 
@@ -1527,6 +1726,7 @@ function syncAllUI() {
   renderAdditionalTZList();
   loadDayControls(state.selectedDay);
   renderAllBoxes();
+  updateTikTokUI();
 }
 
 // ── Init ───────────────────────────────────────────────────────────────────
@@ -1608,6 +1808,7 @@ function init() {
   bindExportControls();
 
   syncAllUI();
+  handleTikTokCallback(); // handles redirect back from TikTok OAuth
 }
 
 document.addEventListener('DOMContentLoaded', init);
