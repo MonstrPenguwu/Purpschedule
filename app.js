@@ -612,9 +612,13 @@ function applyBackground() {
   const iH = state.background.naturalHeight;
   if (state.background.image && iW > 0 && iH > 0) {
     const { w: pw, h: ph } = CANVAS_PRESETS[state.canvasPreset];
-    const coverFactor = Math.max(pw / iW, ph / iH);
-    const size = coverFactor * (state.background.scale / 100);
-    bgLayer.style.backgroundSize = `${Math.round(iW * size)}px ${Math.round(iH * size)}px`;
+    const scale = state.background.scale;
+    // If the image is wider than the canvas's aspect ratio, cover is height-limited;
+    // otherwise it's width-limited. Using CSS percentages keeps the coverage
+    // proportional regardless of the canvas's display size.
+    bgLayer.style.backgroundSize = (iW / iH) >= (pw / ph)
+      ? `auto ${scale}%`
+      : `${scale}% auto`;
   } else {
     bgLayer.style.backgroundSize = `${state.background.scale}%`;
   }
