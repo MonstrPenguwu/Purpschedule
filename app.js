@@ -1045,6 +1045,8 @@ function bindExportControls() {
   });
   document.getElementById('discord-btn').addEventListener('click', postToDiscord);
 
+  document.getElementById('tiktok-btn').addEventListener('click', postToTikTok);
+
   document.getElementById('save-config-btn').addEventListener('click', saveConfigFile);
   document.getElementById('load-config-btn').addEventListener('click', () => document.getElementById('config-upload').click());
   document.getElementById('config-upload').addEventListener('change', e => {
@@ -1319,6 +1321,52 @@ async function postToDiscord() {
   }
 }
 
+async function postToTikTok() {
+  const btn = document.getElementById('tiktok-btn');
+  btn.innerHTML = '⏳<br>…'; btn.disabled = true;
+
+  try {
+    const exportCanvas = await renderScheduleCanvas();
+    const format  = document.getElementById('export-format').value;
+    const quality = parseFloat(document.getElementById('export-quality').value);
+    const mime    = format === 'jpeg' ? 'image/jpeg' : 'image/png';
+    const blob    = await new Promise(resolve => exportCanvas.toBlob(resolve, mime, quality));
+
+    const dateStr = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const captionTemplate = document.getElementById('tiktok-caption').value.trim();
+    const caption = captionTemplate
+      ? captionTemplate.replace(/\{date\}/gi, dateStr)
+      : `Stream Schedule ${dateStr} #vtuber #streamschedule`;
+
+    const filename = `${sanitizeFilename(state.exportFilename || 'stream-schedule')}.${format}`;
+    const file = new File([blob], filename, { type: mime });
+
+    // Try Web Share API first (works natively on mobile to share directly to TikTok)
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({ files: [file], title: caption, text: caption });
+      btn.innerHTML = '✅<br>Shared!';
+      setTimeout(() => { btn.innerHTML = '🎵<br>TikTok'; btn.disabled = false; }, 1500);
+      return;
+    }
+
+    // Desktop fallback: download the image, copy caption, open TikTok upload
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+
+    await navigator.clipboard.writeText(caption).catch(() => {});
+    window.open('https://www.tiktok.com/upload', '_blank', 'noopener');
+
+    btn.innerHTML = '✅<br>Done!';
+    setTimeout(() => { btn.innerHTML = '🎵<br>TikTok'; btn.disabled = false; }, 2500);
+  } catch (err) {
+    if (err.name !== 'AbortError') alert('TikTok share failed: ' + err.message);
+    btn.innerHTML = '🎵<br>TikTok'; btn.disabled = false;
+  }
+}
+
 // ── Save / Load ────────────────────────────────────────────────────────────
 
 function saveToStorage() {
@@ -1443,6 +1491,8 @@ function syncAllUI() {
   set('canvas-size',      state.canvasPreset);
   set('export-filename',  state.exportFilename);
   set('discord-webhook',  state.discordWebhook);
+  const captionEl = document.getElementById('tiktok-caption');
+  if (captionEl && !captionEl.value) captionEl.value = 'Stream Schedule {date} #vtuber #streamschedule';
   applyCanvasPreset(state.canvasPreset);
   applyBackground();
   populateDayVisToggles();
