@@ -631,6 +631,17 @@ function applyBackground() {
 
 // ── Canvas Resize ──────────────────────────────────────────────────────────
 
+// ── Safe Zone Overlay ──────────────────────────────────────────────────────
+
+let safeZonesVisible = false;
+
+function updateSafeZoneOverlay() {
+  const overlay = document.getElementById('safe-zone-overlay');
+  if (!overlay) return;
+  const cat = presetCategory(state.canvasPreset);
+  overlay.className = safeZonesVisible ? `visible sz-${cat}` : '';
+}
+
 function applyCanvasPreset(preset) {
   const prevCategory = presetCategory(state.canvasPreset);
   const nextCategory = presetCategory(preset);
@@ -659,6 +670,7 @@ function applyCanvasPreset(preset) {
     applyLayoutForCategory(nextCategory);
     renderAllBoxes();
   }
+  updateSafeZoneOverlay();
 }
 
 // ── Controls: load state → UI ──────────────────────────────────────────────
@@ -1024,6 +1036,12 @@ function bindExportControls() {
   document.getElementById('export-btn').addEventListener('click', exportImage);
   document.getElementById('export-top-btn').addEventListener('click', exportImage);
 
+  document.getElementById('safe-zone-btn').addEventListener('click', () => {
+    safeZonesVisible = !safeZonesVisible;
+    document.getElementById('safe-zone-btn').classList.toggle('active', safeZonesVisible);
+    updateSafeZoneOverlay();
+  });
+
   document.getElementById('discord-webhook').addEventListener('input', e => {
     state.discordWebhook = e.target.value; saveToStorage();
   });
@@ -1117,9 +1135,12 @@ async function renderScheduleCanvas() {
   const hint        = document.getElementById('canvas-hint');
   const bottomSheet = document.getElementById('bottom-sheet');
 
+  const safeZoneOverlay = document.getElementById('safe-zone-overlay');
+  const savedSafeZoneClass = safeZoneOverlay.className;
   topbar.style.display      = 'none';
   hint.style.display        = 'none';
   bottomSheet.style.display = 'none';
+  safeZoneOverlay.className = '';
   document.querySelectorAll('.day-box.selected').forEach(b => b.classList.remove('selected'));
 
   await document.fonts.ready;
@@ -1212,6 +1233,7 @@ async function renderScheduleCanvas() {
     topbar.style.display      = '';
     hint.style.display        = '';
     bottomSheet.style.display = '';
+    safeZoneOverlay.className = savedSafeZoneClass;
     highlightSelected();
   }
 }

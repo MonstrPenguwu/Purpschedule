@@ -581,6 +581,42 @@ input[type="color"] {
 }
 
 /* ════════════════════════════════════════════════════
+   Safe Zone Overlay
+   ════════════════════════════════════════════════════ */
+
+#safe-zone-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 15;
+  pointer-events: none;
+  display: none;
+  overflow: hidden;
+}
+#safe-zone-overlay.visible { display: block; }
+
+#safe-zone-frame {
+  position: absolute;
+  /* landscape / square defaults: 5% all sides */
+  --sz-top: 5%; --sz-bottom: 5%; --sz-left: 5%; --sz-right: 5%;
+  top: var(--sz-top); bottom: var(--sz-bottom);
+  left: var(--sz-left); right: var(--sz-right);
+  border: 1.5px dashed rgba(255,80,80,0.75);
+  /* outer shadow tints the unsafe zone without touching the safe area */
+  box-shadow: 0 0 0 9999px rgba(220,50,50,0.18);
+}
+/* Portrait: TikTok / Instagram Reels safe margins */
+#safe-zone-overlay.sz-portrait #safe-zone-frame {
+  --sz-top: 10%; --sz-bottom: 20%; --sz-left: 0%; --sz-right: 8%;
+}
+/* Square: Instagram / Facebook minimal edges */
+#safe-zone-overlay.sz-square #safe-zone-frame {
+  --sz-top: 5%; --sz-bottom: 5%; --sz-left: 5%; --sz-right: 5%;
+}
+
+/* Safe-zone button active state */
+#safe-zone-btn.active { color: #ff6464; border-color: #ff6464; }
+
+/* ════════════════════════════════════════════════════
    Day Boxes
    ════════════════════════════════════════════════════ */
 
