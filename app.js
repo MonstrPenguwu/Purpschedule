@@ -1321,6 +1321,35 @@ async function postToDiscord() {
   }
 }
 
+function showTikTokToast(caption) {
+  document.getElementById('tt-toast')?.remove();
+  const toast = document.createElement('div');
+  toast.id = 'tt-toast';
+  toast.innerHTML = `
+    <span>✅ Image saved to Downloads!</span>
+    <span style="font-size:0.78em;opacity:0.8">Open TikTok → select from gallery</span>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <button id="tt-open-btn" style="flex:1;padding:6px 10px;border-radius:6px;border:none;background:#ff0050;color:#fff;font-weight:600;cursor:pointer">Open TikTok</button>
+      <button id="tt-dismiss-btn" style="padding:6px 10px;border-radius:6px;border:1px solid rgba(255,255,255,0.3);background:transparent;color:inherit;cursor:pointer">✕</button>
+    </div>`;
+  Object.assign(toast.style, {
+    position:'fixed', bottom:'calc(var(--ctrl-bar-h, 90px) + var(--tab-bar-h, 58px) + 12px)',
+    left:'12px', right:'12px', zIndex:200,
+    background:'var(--bg-sidebar,#1e1e2e)', border:'1px solid var(--border,#444)',
+    borderRadius:'10px', padding:'12px 14px',
+    display:'flex', flexDirection:'column', gap:'4px',
+    boxShadow:'0 4px 20px rgba(0,0,0,0.5)', fontSize:'0.9em'
+  });
+  document.body.appendChild(toast);
+
+  toast.querySelector('#tt-open-btn').addEventListener('click', () => {
+    window.open('https://www.tiktok.com', '_blank', 'noopener');
+    toast.remove();
+  });
+  toast.querySelector('#tt-dismiss-btn').addEventListener('click', () => toast.remove());
+  setTimeout(() => toast.remove(), 12000);
+}
+
 async function postToTikTok() {
   const btn = document.getElementById('tiktok-btn');
   btn.innerHTML = '⏳<br>…'; btn.disabled = true;
@@ -1339,30 +1368,28 @@ async function postToTikTok() {
       : `Stream Schedule ${dateStr} #vtuber #streamschedule`;
 
     const filename = `${sanitizeFilename(state.exportFilename || 'stream-schedule')}.${format}`;
-    const file = new File([blob], filename, { type: mime });
 
-    // Try Web Share API first (works natively on mobile to share directly to TikTok)
-    if (navigator.canShare && navigator.canShare({ files: [file] })) {
-      await navigator.share({ files: [file], title: caption, text: caption });
-      btn.innerHTML = '✅<br>Shared!';
-      setTimeout(() => { btn.innerHTML = '🎵<br>TikTok'; btn.disabled = false; }, 1500);
-      return;
-    }
-
-    // Desktop fallback: download the image, copy caption, open TikTok upload
+    // Always download — reliable regardless of browser/gesture state
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = filename;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 1000);
 
-    await navigator.clipboard.writeText(caption).catch(() => {});
-    window.open('https://www.tiktok.com/upload', '_blank', 'noopener');
+    // Copy caption to clipboard best-effort
+    navigator.clipboard?.writeText(caption).catch(() => {});
 
+    // Try Web Share API — it may work if the gesture is still alive
+    const file = new File([blob], filename, { type: mime });
+    if (navigator.canShare?.({ files: [file] })) {
+      navigator.share({ files: [file], text: caption }).catch(() => {});
+    }
+
+    showTikTokToast(caption);
     btn.innerHTML = '✅<br>Done!';
-    setTimeout(() => { btn.innerHTML = '🎵<br>TikTok'; btn.disabled = false; }, 2500);
+    setTimeout(() => { btn.innerHTML = '🎵<br>TikTok'; btn.disabled = false; }, 2000);
   } catch (err) {
-    if (err.name !== 'AbortError') alert('TikTok share failed: ' + err.message);
+    if (err.name !== 'AbortError') alert('TikTok export failed: ' + err.message);
     btn.innerHTML = '🎵<br>TikTok'; btn.disabled = false;
   }
 }
