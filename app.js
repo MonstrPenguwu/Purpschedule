@@ -1157,24 +1157,20 @@ async function renderScheduleCanvas() {
   // When a background image is present, hide it from html2canvas and composite
   // it manually at native resolution — this prevents html2canvas from blurring
   // the image by scaling it up from CSS pixel dimensions.
-  const hasBg         = !!state.background.image;
-  const savedBgImg    = bgLayer.style.backgroundImage;
-  const savedBgSize   = bgLayer.style.backgroundSize;
-  const savedBgPos    = bgLayer.style.backgroundPosition;
-  const savedBgFilter = bgLayer.style.filter;
-  const savedOverlay  = bgOverlay.style.background;
-  const savedCanvasBg = canvas.style.background;
-
-  if (hasBg) {
-    bgLayer.style.backgroundImage = 'none';
-    bgOverlay.style.background    = 'transparent';
-    canvas.style.background       = 'transparent';
-  }
+  const hasBg = !!state.background.image;
 
   try {
+    // Skip bg-layer, bg-overlay, and safe-zone-overlay from html2canvas
+    // so only day boxes (with transparent canvas background) are captured.
+    // Using ignoreElements is more reliable than inline-style overrides,
+    // which some html2canvas versions ignore when reading stylesheet values.
     const rendered = await html2canvas(canvas, {
       scale: exportScale, useCORS: true, allowTaint: true,
-      backgroundColor: hasBg ? null : '#1a1a2e', logging: false,
+      backgroundColor: hasBg ? 'transparent' : '#1a1a2e', logging: false,
+      ignoreElements: el =>
+        el.id === 'bg-layer' ||
+        el.id === 'bg-overlay' ||
+        el.id === 'safe-zone-overlay',
     });
 
     let exportCanvas = rendered;
@@ -1192,13 +1188,21 @@ async function renderScheduleCanvas() {
       await new Promise((resolve, reject) => {
         const img = new Image();
         img.onload = () => {
-          // Match applyBackground() cover-based sizing: scale 100 = cover, higher = zoomed
+          // Mirror applyBackground() CSS percentage logic exactly:
+          //   iAR >= cAR → "auto ${scale}%" → height drives the size
+          //   iAR <  cAR → "${scale}% auto" → width drives the size
           const iW = img.naturalWidth, iH = img.naturalHeight;
-          const coverFactor = Math.max(comp.width / iW, comp.height / iH);
-          const size = coverFactor * (state.background.scale / 100);
-          const drawW = iW * size;
-          const drawH = iH * size;
-          // Match CSS background-position percentage semantics
+          const { w: pw, h: ph } = CANVAS_PRESETS[state.canvasPreset];
+          const sc = state.background.scale / 100;
+          let drawW, drawH;
+          if (iW / iH >= pw / ph) {
+            drawH = comp.height * sc;
+            drawW = (iW / iH) * drawH;
+          } else {
+            drawW = comp.width * sc;
+            drawH = (iH / iW) * drawW;
+          }
+          // CSS background-position percentage semantics
           const drawX = (comp.width  - drawW) * (state.background.posX / 100);
           const drawY = (comp.height - drawH) * (state.background.posY / 100);
 
@@ -1224,12 +1228,6 @@ async function renderScheduleCanvas() {
 
     return exportCanvas;
   } finally {
-    bgLayer.style.backgroundImage    = savedBgImg;
-    bgLayer.style.backgroundSize     = savedBgSize;
-    bgLayer.style.backgroundPosition = savedBgPos;
-    bgLayer.style.filter             = savedBgFilter;
-    bgOverlay.style.background       = savedOverlay;
-    canvas.style.background          = savedCanvasBg;
     topbar.style.display      = '';
     hint.style.display        = '';
     controlBar.style.display  = '';
